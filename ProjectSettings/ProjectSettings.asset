@@ -4,7 +4,7 @@
 PlayerSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 28
-  productGUID: fee581cfd1ff096469d1b3f0236fa2fd
+  productGUID: ea6a9b49ddbb45f44ac2bc4371fe51da
   AndroidProfiler: 0
   AndroidFilterTouchesWhenObscured: 0
   AndroidEnableSustainedPerformanceMode: 0
@@ -13,7 +13,7 @@ PlayerSettings:
   useOnDemandResources: 0
   accelerometerFrequency: 60
   companyName: DefaultCompany
-  productName: Steal_brainrot_run
+  productName: Steal_brainrot_lava
   defaultCursor: {fileID: 0}
   cursorHotspot: {x: 0, y: 0}
   m_SplashScreenBackgroundColor: {r: 0.12156863, g: 0.12156863, b: 0.1254902, a: 1}
@@ -582,17 +582,17 @@ PlayerSettings:
   webWasm2023: 0
   webEnableSubmoduleStrippingCompatibility: 0
   scriptingDefineSymbols:
-    Android: PLUGIN_YG_2;Authorization_yg;EnvirData_yg;Localization_yg;Storage_yg;TMP_YG2;YandexGamesPlatform_yg
-    LinuxHeadlessSimulation: PLUGIN_YG_2;Authorization_yg;EnvirData_yg;Localization_yg;Storage_yg;TMP_YG2;YandexGamesPlatform_yg
-    Nintendo Switch: PLUGIN_YG_2;Authorization_yg;EnvirData_yg;Localization_yg;Storage_yg;TMP_YG2;YandexGamesPlatform_yg
-    PS4: PLUGIN_YG_2;Authorization_yg;EnvirData_yg;Localization_yg;Storage_yg;TMP_YG2;YandexGamesPlatform_yg
-    PS5: PLUGIN_YG_2;Authorization_yg;EnvirData_yg;Localization_yg;Storage_yg;TMP_YG2;YandexGamesPlatform_yg
-    Standalone: PLUGIN_YG_2;Authorization_yg;EnvirData_yg;Localization_yg;Storage_yg;TMP_YG2;YandexGamesPlatform_yg
-    WebGL: PLUGIN_YG_2;Authorization_yg;EnvirData_yg;Localization_yg;Storage_yg;TMP_YG2;YandexGamesPlatform_yg
-    Windows Store Apps: PLUGIN_YG_2;Authorization_yg;EnvirData_yg;Localization_yg;Storage_yg;TMP_YG2;YandexGamesPlatform_yg
-    XboxOne: PLUGIN_YG_2;Authorization_yg;EnvirData_yg;Localization_yg;Storage_yg;TMP_YG2;YandexGamesPlatform_yg
-    iPhone: PLUGIN_YG_2;Authorization_yg;EnvirData_yg;Localization_yg;Storage_yg;TMP_YG2;YandexGamesPlatform_yg
-    tvOS: PLUGIN_YG_2;Authorization_yg;EnvirData_yg;Localization_yg;Storage_yg;TMP_YG2;YandexGamesPlatform_yg
+    Android: PLUGIN_YG_2;YandexGamesPlatform_yg;Authorization_yg;EnvirData_yg;Localization_yg;Storage_yg;TMP_YG2
+    LinuxHeadlessSimulation: PLUGIN_YG_2;YandexGamesPlatform_yg;Authorization_yg;EnvirData_yg;Localization_yg;Storage_yg;TMP_YG2
+    Nintendo Switch: PLUGIN_YG_2;YandexGamesPlatform_yg;Authorization_yg;EnvirData_yg;Localization_yg;Storage_yg;TMP_YG2
+    PS4: PLUGIN_YG_2;YandexGamesPlatform_yg;Authorization_yg;EnvirData_yg;Localization_yg;Storage_yg;TMP_YG2
+    PS5: PLUGIN_YG_2;YandexGamesPlatform_yg;Authorization_yg;EnvirData_yg;Localization_yg;Storage_yg;TMP_YG2
+    Standalone: PLUGIN_YG_2;YandexGamesPlatform_yg;Authorization_yg;EnvirData_yg;Localization_yg;Storage_yg;TMP_YG2
+    WebGL: PLUGIN_YG_2;YandexGamesPlatform_yg;Authorization_yg;EnvirData_yg;Localization_yg;Storage_yg;TMP_YG2
+    Windows Store Apps: PLUGIN_YG_2;YandexGamesPlatform_yg;Authorization_yg;EnvirData_yg;Localization_yg;Storage_yg;TMP_YG2
+    XboxOne: PLUGIN_YG_2;YandexGamesPlatform_yg;Authorization_yg;EnvirData_yg;Localization_yg;Storage_yg;TMP_YG2
+    iPhone: PLUGIN_YG_2;YandexGamesPlatform_yg;Authorization_yg;EnvirData_yg;Localization_yg;Storage_yg;TMP_YG2
+    tvOS: PLUGIN_YG_2;YandexGamesPlatform_yg;Authorization_yg;EnvirData_yg;Localization_yg;Storage_yg;TMP_YG2
   additionalCompilerArguments: {}
   platformArchitecture: {}
   scriptingBackend: {}
@@ -612,14 +612,14 @@ PlayerSettings:
   editorAssembliesCompatibilityLevel: 1
   m_RenderingPath: 1
   m_MobileRenderingPath: 1
-  metroPackageName: Steal_brainrot_run
+  metroPackageName: Steal_brainrot_lava
   metroPackageVersion: 
   metroCertificatePath: 
   metroCertificatePassword: 
   metroCertificateSubject: 
   metroCertificateIssuer: 
   metroCertificateNotAfter: 0000000000000000
-  metroApplicationDescription: Steal_brainrot_run
+  metroApplicationDescription: Steal_brainrot_lava
   wsaImages: {}
   metroTileShortName: 
   metroTileShowName: 0

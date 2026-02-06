@@ -400,10 +400,16 @@ public class InteractButton : MonoBehaviour, IPointerDownHandler, IPointerUpHand
         // 1. Это мобильное устройство
         // 2. Есть ближайший объект
         // 3. Игрок может взаимодействовать с объектом ИЛИ объект переносится (для "Поставить")
+        // ВАЖНО: Когда текст "Take" (нет брейнрота в руках), НЕ показываем кнопку,
+        // так как взаимодействие теперь происходит через префаб Interaction
+        // Когда текст "Put" (есть брейнрот в руках), показываем кнопку как обычно
         bool shouldShow = false;
         
         if (isMobileDevice && currentInteractableObject != null)
         {
+            // Проверяем, есть ли брейнрот в руках
+            bool hasBrainrotInHands = playerCarryController != null && playerCarryController.GetCurrentCarriedObject() != null;
+            
             // Для BrainrotObject проверяем, переносится ли он
             BrainrotObject brainrotObj = currentInteractableObject as BrainrotObject;
             bool isCarried = brainrotObj != null && brainrotObj.IsCarried();
@@ -415,8 +421,17 @@ public class InteractButton : MonoBehaviour, IPointerDownHandler, IPointerUpHand
             }
             else
             {
-                // Если объект не переносится, проверяем CanInteract()
-                shouldShow = currentInteractableObject.CanInteract();
+                // Если объект не переносится и нет брейнрота в руках (текст "Take"),
+                // НЕ показываем кнопку, так как взаимодействие через префаб Interaction
+                if (!hasBrainrotInHands)
+                {
+                    shouldShow = false;
+                }
+                else
+                {
+                    // Если есть брейнрот в руках (текст "Put"), проверяем CanInteract()
+                    shouldShow = currentInteractableObject.CanInteract();
+                }
             }
         }
         

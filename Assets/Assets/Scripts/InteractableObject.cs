@@ -1,6 +1,8 @@
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UI;
+using UnityEngine.Rendering;
+using TMPro;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
 #endif
@@ -766,6 +768,10 @@ public class InteractableObject : MonoBehaviour
                 canvasRect.localPosition = Vector3.zero;
             }
             
+            // UI поверх всех 3D объектов: максимальный sorting order + материал с ZTest Always
+            uiCanvas.sortingOrder = 32767;
+            SetUIRenderOnTop(currentUIInstance);
+            
             // Теперь устанавливаем родителя после настройки Canvas
             currentUIInstance.transform.SetParent(transform, true); // true = сохраняем мировую позицию
             
@@ -804,6 +810,61 @@ public class InteractableObject : MonoBehaviour
         else
         {
             Debug.LogWarning($"[InteractableObject] {gameObject.name}: Canvas не найден в UI Prefab! UI не будет отображаться.");
+        }
+        
+        // Добавляем компонент для обновления текста взаимодействия
+        InteractionTextUpdater textUpdater = currentUIInstance.GetComponent<InteractionTextUpdater>();
+        if (textUpdater == null)
+        {
+            textUpdater = currentUIInstance.AddComponent<InteractionTextUpdater>();
+            if (debugMode)
+            {
+                Debug.Log($"[InteractableObject] {gameObject.name}: Добавлен компонент InteractionTextUpdater для обновления текста");
+            }
+        }
+        
+        // Добавляем компонент для обработки взаимодействия через тап/ЛКМ
+        // ВАЖНО: Добавляем на корневой объект Canvas для правильной обработки событий
+        GameObject handlerTarget = currentUIInstance;
+        if (uiCanvas != null && uiCanvas.gameObject != currentUIInstance)
+        {
+            handlerTarget = uiCanvas.gameObject;
+        }
+        
+        InteractionUIHandler uiHandler = handlerTarget.GetComponent<InteractionUIHandler>();
+        if (uiHandler == null)
+        {
+            uiHandler = handlerTarget.AddComponent<InteractionUIHandler>();
+            // Устанавливаем ссылку на родительский InteractableObject
+            uiHandler.SetParentInteractableObject(this);
+            // Передаем ссылку на radial Image для синхронизации
+            if (progressRingImage != null)
+            {
+                uiHandler.SetRadialImage(progressRingImage);
+            }
+            if (debugMode)
+            {
+                Debug.Log($"[InteractableObject] {gameObject.name}: Добавлен компонент InteractionUIHandler на {handlerTarget.name} для обработки тапа/ЛКМ");
+            }
+        }
+        else
+        {
+            // Обновляем ссылку, если компонент уже существует
+            uiHandler.SetParentInteractableObject(this);
+            if (progressRingImage != null)
+            {
+                uiHandler.SetRadialImage(progressRingImage);
+            }
+        }
+        
+        // Убеждаемся, что все Image компоненты могут получать события
+        Image[] allImages = currentUIInstance.GetComponentsInChildren<Image>(true);
+        foreach (Image img in allImages)
+        {
+            if (img != null && img != progressRingImage)
+            {
+                img.raycastTarget = true;
+            }
         }
         
         // Дополнительная проверка: убеждаемся, что UI виден
@@ -991,6 +1052,69 @@ public class InteractableObject : MonoBehaviour
             else if (debugMode)
             {
                 Debug.Log($"[InteractableObject] {gameObject.name}: UI создан успешно. GameObject активен: {currentUIInstance.activeSelf}, Позиция: {currentUIInstance.transform.position}, Иконка кнопки: {(buttonIconImage != null ? buttonIconImage.name : "не найдена")}, Canvas активен: {(uiCanvas != null ? uiCanvas.gameObject.activeSelf.ToString() : "N/A")}");
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Делает UI видимым поверх всех 3D объектов (игнорирует Z-тест глубины).
+    /// Модифицирует материал каждого Graphic (Image, Text, TMP) для прохождения ZTest Always.
+    /// TextMeshProUGUI использует fontMaterial — обрабатывается отдельно.
+    /// </summary>
+    private void SetUIRenderOnTop(GameObject uiRoot)
+    {
+        if (uiRoot == null) return;
+        
+        foreach (var g in uiRoot.GetComponentsInChildren<Graphic>(true))
+        {
+            if (g == null) continue;
+            
+            ApplyRenderOnTopToMaterial(g.material);
+            
+            // TextMeshProUGUI рендерит через fontMaterial, а не через Graphic.material
+            if (g is TMP_Text tmpText)
+            {
+                if (tmpText.fontMaterial != null)
+                    ApplyRenderOnTopToMaterial(tmpText.fontMaterial);
+                if (tmpText.fontMaterials != null)
+                {
+                    foreach (var mat in tmpText.fontMaterials)
+                        ApplyRenderOnTopToMaterial(mat);
+                }
+            }
+        }
+        
+        StartCoroutine(SetUIRenderOnTopDelayed(uiRoot)); // Повтор через кадр — TMP создаёт материалы при первом рендере
+    }
+    
+    private void ApplyRenderOnTopToMaterial(Material mat)
+    {
+        if (mat == null) return;
+        mat.SetInt("unity_GUIZTestMode", (int)CompareFunction.Always);
+        mat.renderQueue = 4000;
+    }
+    
+    private System.Collections.IEnumerator SetUIRenderOnTopDelayed(GameObject uiRoot)
+    {
+        yield return null;
+        if (uiRoot != null && currentUIInstance != null && currentUIInstance == uiRoot)
+            SetUIRenderOnTopImmediate(uiRoot);
+    }
+    
+    private void SetUIRenderOnTopImmediate(GameObject uiRoot)
+    {
+        if (uiRoot == null) return;
+        foreach (var g in uiRoot.GetComponentsInChildren<Graphic>(true))
+        {
+            if (g == null) continue;
+            ApplyRenderOnTopToMaterial(g.material);
+            if (g is TMP_Text tmpText)
+            {
+                if (tmpText.fontMaterial != null)
+                    ApplyRenderOnTopToMaterial(tmpText.fontMaterial);
+                if (tmpText.fontMaterials != null)
+                    foreach (var mat in tmpText.fontMaterials)
+                        ApplyRenderOnTopToMaterial(mat);
             }
         }
     }
@@ -1233,6 +1357,13 @@ public class InteractableObject : MonoBehaviour
     /// </summary>
     protected virtual void HandleInput()
     {
+        // ВАЖНО: Если идет мобильное взаимодействие через UI, НЕ обрабатываем клавиатурный ввод
+        // чтобы не сбрасывать isHoldingKey
+        if (isMobileInteraction)
+        {
+            return;
+        }
+        
         // Если игрок не в радиусе, но клавиша все еще зажата, сбрасываем состояние
         if (!isPlayerInRange)
         {
@@ -1321,7 +1452,16 @@ public class InteractableObject : MonoBehaviour
             if (isHoldingKey && !isMobileInteraction)
             {
                 // Только что отпустили клавишу на PC - сбрасываем прогресс
-                ResetProgress();
+                // ВАЖНО: Но только если currentHoldTime > 0, чтобы не сбрасывать при первом клике через UI
+                // Если currentHoldTime == 0, это может быть начало мобильного взаимодействия
+                if (currentHoldTime > 0f)
+                {
+                    ResetProgress();
+                }
+                else if (debugMode)
+                {
+                    Debug.Log($"[InteractableObject] {gameObject.name}: HandleInput: isHoldingKey=true но currentHoldTime=0, возможно начало мобильного взаимодействия, не сбрасываем");
+                }
             }
             
             // Если взаимодействие было завершено и клавиша отпущена, сбрасываем флаг завершения

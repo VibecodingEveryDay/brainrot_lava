@@ -1,76 +1,165 @@
 {
-    "balanceCount": 803,
-    "balanceScaler": "M",
+    "balanceCount": 1,
+    "balanceScaler": "T",
     "Brainrots": [],
     "PlayerSpeedLevel": 22,
     "OpeningLevel": 21,
     "PlacedBrainrots": [
-        {
-            "placementID": 12,
-            "brainrotName": "TralaleroTralala",
-            "level": 2,
-            "rarity": "Epic",
-            "baseIncome": 1742
-        },
-        {
-            "placementID": 13,
-            "brainrotName": "TorrtuginniDragonfrutini",
-            "level": 20,
-            "rarity": "Rare",
-            "baseIncome": 194
-        },
         {
             "placementID": 14,
             "brainrotName": "BisonteGiuppitere",
             "level": 8,
             "rarity": "Mythic",
             "baseIncome": 144
+        },
+        {
+            "placementID": 1,
+            "brainrotName": "67",
+            "level": 20,
+            "rarity": "Secret",
+            "baseIncome": 10000
+        },
+        {
+            "placementID": 7,
+            "brainrotName": "67",
+            "level": 20,
+            "rarity": "Secret",
+            "baseIncome": 10000
+        },
+        {
+            "placementID": 15,
+            "brainrotName": "67",
+            "level": 20,
+            "rarity": "Secret",
+            "baseIncome": 10000
+        },
+        {
+            "placementID": 5,
+            "brainrotName": "67",
+            "level": 20,
+            "rarity": "Secret",
+            "baseIncome": 10000
+        },
+        {
+            "placementID": 6,
+            "brainrotName": "67",
+            "level": 20,
+            "rarity": "Secret",
+            "baseIncome": 10000
+        },
+        {
+            "placementID": 11,
+            "brainrotName": "67",
+            "level": 20,
+            "rarity": "Secret",
+            "baseIncome": 10000
+        },
+        {
+            "placementID": 10,
+            "brainrotName": "67",
+            "level": 20,
+            "rarity": "Secret",
+            "baseIncome": 10000
+        },
+        {
+            "placementID": 0,
+            "brainrotName": "TorrtuginniDragonfrutini",
+            "level": 20,
+            "rarity": "Rare",
+            "baseIncome": 194
+        },
+        {
+            "placementID": 4,
+            "brainrotName": "TralaleroTralala",
+            "level": 15,
+            "rarity": "Epic",
+            "baseIncome": 1742
+        },
+        {
+            "placementID": 12,
+            "brainrotName": "67",
+            "level": 20,
+            "rarity": "Secret",
+            "baseIncome": 10000
+        },
+        {
+            "placementID": 13,
+            "brainrotName": "67",
+            "level": 20,
+            "rarity": "Secret",
+            "baseIncome": 10000
+        },
+        {
+            "placementID": 3,
+            "brainrotName": "67",
+            "level": 20,
+            "rarity": "Secret",
+            "baseIncome": 10000
+        },
+        {
+            "placementID": 2,
+            "brainrotName": "67",
+            "level": 20,
+            "rarity": "Secret",
+            "baseIncome": 10000
         }
     ],
     "EarnPanelBalances": [
         {
             "panelID": 3,
-            "accumulatedBalance": 0.0
+            "accumulatedBalance": 390600000000.0
         },
         {
             "panelID": 4,
-            "accumulatedBalance": 0.0
+            "accumulatedBalance": 284294400.0
         },
         {
             "panelID": 2,
-            "accumulatedBalance": 0.0
+            "accumulatedBalance": 275100000000.0
         },
         {
             "panelID": 6,
-            "accumulatedBalance": 0.0
+            "accumulatedBalance": 558600000000.0
         },
         {
             "panelID": 7,
-            "accumulatedBalance": 0.0
+            "accumulatedBalance": 558600000000.0
         },
         {
             "panelID": 1,
-            "accumulatedBalance": 0.0
+            "accumulatedBalance": 564900000000.0
         },
         {
             "panelID": 5,
-            "accumulatedBalance": 0.0
+            "accumulatedBalance": 399000000000.0
         },
         {
             "panelID": 0,
-            "accumulatedBalance": 0.0
+            "accumulatedBalance": 5499900.0
         },
         {
             "panelID": 12,
-            "accumulatedBalance": 6793800.0
+            "accumulatedBalance": 390600000000.0
         },
         {
             "panelID": 13,
-            "accumulatedBalance": 2261070.0
+            "accumulatedBalance": 275100000000.0
         },
         {
             "panelID": 14,
-            "accumulatedBalance": 28512000.0
+            "accumulatedBalance": 69724800.0
+        },
+        {
+            "panelID": 15,
+            "accumulatedBalance": 583800000000.0
+        },
+        {
+            "panelID": 11,
+            "accumulatedBalance": 399000000000.0
+        },
+        {
+            "panelID": 10,
+            "accumulatedBalance": 560700000000.0
         }
     ],
     "AttackPowerLevel": 0,
@@ -86,5 +175,5 @@
         false,
         false
     ],
-    "idSave": 2723
+    "idSave": 5279
 }
