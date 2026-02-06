@@ -1,0 +1,134 @@
+newmtl Mesheshouse123cube04411Mtl
+Material Color
+Ka 0.0915184 0.0511221 0.0328759
+Kd 0.0915184 0.0511221 0.0328759
+Ks 0.0362484 0.0202483 0.0130214 
+
+d 1
+
+Ns 0
+
+newmtl Mesheshouse123cube20911Mtl
+Material Color
+Ka 0.124741 0.113921 0.121986
+Kd 0.124741 0.113921 0.121986
+Ks 0.0494072 0.0451216 0.0483159 
+
+d 1
+
+Ns 0
+
+newmtl Mesheshouse123cube00911Mtl
+Material Color
+Ka 0.20836 0.190463 0.20471
+Kd 0.20836 0.190463 0.20471
+Ks 0.0825268 0.0754382 0.0810813 
+
+d 1
+
+Ns 0
+
+newmtl Mesheshouse123cube19511Mtl
+Material Color
+Ka 0.000638183 0.254916 0.632043
+Kd 0.000638183 0.254916 0.632043
+Ks 0.00025277 0.100967 0.250338 
+
+d 1
+
+Ns 0
+
+newmtl Part1Mtl
+Material Color
+Ka 0.708298 0.238828 0.0494335
+Kd 0.708298 0.238828 0.0494335
+Ks 0.0638857 0.0215413 0.0044587 
+
+d 1
+
+Ns 0
+
+newmtl Mesheshouse123cube20611Mtl
+Material Color
+Ka 0.0915184 0.0824142 0.0891935
+Kd 0.0915184 0.0824142 0.0891935
+Ks 0.0362484 0.0326425 0.0353276 
+
+d 1
+
+Ns 0
+
+newmtl Mesheshouse123cube09211Mtl
+Material Color
+Ka 0.121986 0.0759261 0.0545923
+Kd 0.121986 0.0759261 0.0545923
+Ks 0.0483159 0.0300727 0.0216228 
+
+d 1
+
+Ns 0
+
+newmtl Mesheshouse123cube01011Mtl
+Material Color
+Ka 0.113921 0.103634 0.111299
+Kd 0.113921 0.103634 0.111299
+Ks 0.0451216 0.0410472 0.0440833 
+
+d 1
+
+Ns 0
+
+newmtl Mesheshouse123cube12Mtl
+Material Color
+Ka 1 1 1
+Kd 1 1 1
+Ks 0.396078 0.396078 0.396078 
+
+d 0.0313726
+
+Ns 0
+
+map_Ka Mesheshouse123cube12_diff.png
+map_Kd Mesheshouse123cube12_diff.png
+map_d Mesheshouse123cube12_diff.png
+
+newmtl Mesheshouse123cube04511Mtl
+Material Color
+Ka 0.151058 0.0962661 0.0677246
+Kd 0.151058 0.0962661 0.0677246
+Ks 0.0598308 0.0381289 0.0268243 
+
+d 1
+
+Ns 0
+
+newmtl Mesheshouse123cube19611Mtl
+Material Color
+Ka 0.157281 0.325037 0.598942
+Kd 0.157281 0.325037 0.598942
+Ks 0.0622955 0.12874 0.237228 
+
+d 1
+
+Ns 0
+
+newmtl Mesheshouse123cylinder11Mtl
+Material Color
+Ka 0.511398 0.334458 0.108711
+Kd 0.511398 0.334458 0.108711
+Ks 0.202554 0.132472 0.0430581 
+
+d 1
+
+Ns 0
+
+newmtl Mesheshouse123cube11011Mtl
+Material Color
+Ka 0.358654 0.25084 0.113921
+Kd 0.358654 0.25084 0.113921
+Ks 0.142055 0.0993524 0.0451216 
+
+d 1
+
+Ns 0
+

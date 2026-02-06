@@ -1,0 +1,24 @@
+newmtl Plane0011Mtl
+Material Color
+Ka 0.373615 0.368591 0.383775
+Kd 0.373615 0.368591 0.383775
+Ks 0.0322335 0.0318 0.03311 
+
+d 1
+
+Ns 255
+
+map_Ka Plane0011_diff.png
+map_Kd Plane0011_diff.png
+map_d Plane0011_diff.png
+
+newmtl Plane1Mtl
+Material Color
+Ka 0.751895 0.22331 0.042987
+Kd 0.751895 0.22331 0.042987
+Ks 0.297809 0.0884484 0.0170262 
+
+d 1
+
+Ns 0
+

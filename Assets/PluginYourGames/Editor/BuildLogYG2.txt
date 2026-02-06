@@ -1,0 +1,3 @@
+﻿Build path: A:/CODE/unity_builds/Steal_brainrot_fire
+Build number: 20
+PluginYG version: 2.007

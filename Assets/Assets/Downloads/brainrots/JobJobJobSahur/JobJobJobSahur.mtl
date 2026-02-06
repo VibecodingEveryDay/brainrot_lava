@@ -1,0 +1,54 @@
+newmtl Circle1Mtl
+Material Color
+Ka 1 0.425905 0.103634
+Kd 1 0.425905 0.103634
+Ks 0.396078 0.168692 0.0410472 
+
+d 1
+
+Ns 0
+
+newmtl Cube0051Mtl
+Material Color
+Ka 0.394083 0.353741 0.325037
+Kd 0.394083 0.353741 0.325037
+Ks 0.156088 0.140109 0.12874 
+
+d 1
+
+Ns 0
+
+newmtl Cube0061Mtl
+Material Color
+Ka 1 0.940601 0.891262
+Kd 1 0.940601 0.891262
+Ks 0.396078 0.372552 0.35301 
+
+d 1
+
+Ns 0
+
+newmtl Sphere1Mtl
+Material Color
+Ka 0.373615 0.368591 0.383775
+Kd 0.373615 0.368591 0.383775
+Ks 0.0322335 0.0318 0.03311 
+
+d 1
+
+Ns 255
+
+map_Ka Sphere1_diff.png
+map_Kd Sphere1_diff.png
+map_d Sphere1_diff.png
+
+newmtl Text1Mtl
+Material Color
+Ka 0.0231036 0.018913 0.0160677
+Kd 0.0231036 0.018913 0.0160677
+Ks 0.00915082 0.00749103 0.00636407 
+
+d 1
+
+Ns 0
+

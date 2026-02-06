@@ -1,0 +1,256 @@
+newmtl Tip2Mtl
+Material Color
+Ka 0.499505 0.147998 0.103634
+Kd 0.499505 0.147998 0.103634
+Ks 0.197843 0.0586188 0.0410472 
+
+d 1
+
+Ns 0
+
+newmtl Leaf1Mtl
+Material Color
+Ka 0.170138 0.511398 0.108711
+Kd 0.170138 0.511398 0.108711
+Ks 0.0106753 0.0320877 0.00682109 
+
+d 1
+
+Ns 0
+
+newmtl Trunk1Mtl
+Material Color
+Ka 1 1 1
+Kd 1 1 1
+Ks 0.396078 0.396078 0.396078 
+
+d 1
+
+Ns 0
+
+map_Ka Trunk1_diff.png
+map_Kd Trunk1_diff.png
+map_d Trunk1_diff.png
+
+newmtl Trunk3Mtl
+Material Color
+Ka 1 1 1
+Kd 1 1 1
+Ks 0.396078 0.396078 0.396078 
+
+d 1
+
+Ns 0
+
+map_Ka Trunk3_diff.png
+map_Kd Trunk3_diff.png
+map_d Trunk3_diff.png
+
+newmtl Leaf5Mtl
+Material Color
+Ka 0.0545923 0.136099 0.0399472
+Kd 0.0545923 0.136099 0.0399472
+Ks 0.0034254 0.00853952 0.00250649 
+
+d 1
+
+Ns 0
+
+newmtl Leaf2Mtl
+Material Color
+Ka 0.0802193 0.20471 0.0600316
+Kd 0.0802193 0.20471 0.0600316
+Ks 0.00503337 0.0128446 0.00376669 
+
+d 1
+
+Ns 0
+
+newmtl Trunk2Mtl
+Material Color
+Ka 0.197516 0.130352 0.0891935
+Kd 0.197516 0.130352 0.0891935
+Ks 0.078232 0.0516297 0.0353276 
+
+d 1
+
+Ns 0
+
+newmtl Stickcluster1Mtl
+Material Color
+Ka 0.193972 0.119264 0.0657539
+Kd 0.193972 0.119264 0.0657539
+Ks 0.0768282 0.0472379 0.0260437 
+
+d 1
+
+Ns 0
+
+newmtl Trunk5Mtl
+Material Color
+Ka 0.163641 0.106156 0.0738278
+Kd 0.163641 0.106156 0.0738278
+Ks 0.0648145 0.0420461 0.0292416 
+
+d 1
+
+Ns 0
+
+newmtl Leaf6Mtl
+Material Color
+Ka 0.796917 0.796917 0.796917
+Kd 0.796917 0.796917 0.796917
+Ks 0.0500026 0.0500026 0.0500026 
+
+d 1
+
+Ns 0
+
+newmtl Leaf30Mtl
+Material Color
+Ka 0.0677246 0.20471 0.0445526
+Kd 0.0677246 0.20471 0.0445526
+Ks 0.00424939 0.0128446 0.00279546 
+
+d 1
+
+Ns 0
+
+newmtl Trunk12Mtl
+Material Color
+Ka 1 1 1
+Kd 1 1 1
+Ks 0.396078 0.396078 0.396078 
+
+d 1
+
+Ns 0
+
+map_Ka Trunk12_diff.png
+map_Kd Trunk12_diff.png
+map_d Trunk12_diff.png
+
+newmtl Trunk21Mtl
+Material Color
+Ka 0.154152 0.0846415 0.0638149
+Kd 0.154152 0.0846415 0.0638149
+Ks 0.0610564 0.0335247 0.0252757 
+
+d 1
+
+Ns 0
+
+newmtl Grass31Mtl
+Material Color
+Ka 0.113921 0.329729 0.0717615
+Kd 0.113921 0.329729 0.0717615
+Ks 0.0451216 0.130599 0.0284232 
+
+d 1
+
+Ns 0
+
+newmtl Fern31Mtl
+Material Color
+Ka 0.0461488 0.139022 0.0289912
+Kd 0.0461488 0.139022 0.0289912
+Ks 0.00289561 0.00872298 0.00181905 
+
+d 1
+
+Ns 0
+
+newmtl Trunk20Mtl
+Material Color
+Ka 1 1 1
+Kd 1 1 1
+Ks 0.396078 0.396078 0.396078 
+
+d 1
+
+Ns 0
+
+map_Ka Trunk20_diff.png
+map_Kd Trunk20_diff.png
+map_d Trunk20_diff.png
+
+newmtl Leaf32Mtl
+Material Color
+Ka 0.0824142 0.2468 0.0545923
+Kd 0.0824142 0.2468 0.0545923
+Ks 0.00517109 0.0154855 0.0034254 
+
+d 1
+
+Ns 0
+
+newmtl Hallowlogsmall1Mtl
+Material Color
+Ka 0.288816 0.176774 0.0986892
+Kd 0.288816 0.176774 0.0986892
+Ks 0.114394 0.0700165 0.0390887 
+
+d 1
+
+Ns 0
+
+newmtl Largestop1Mtl
+Material Color
+Ka 0.394083 0.116576 0.0824142
+Kd 0.394083 0.116576 0.0824142
+Ks 0.156088 0.0461732 0.0326425 
+
+d 1
+
+Ns 0
+
+newmtl Tip1Mtl
+Material Color
+Ka 0.378676 0.183549 0.499505
+Kd 0.378676 0.183549 0.499505
+Ks 0.149986 0.0726998 0.197843 
+
+d 1
+
+Ns 0
+
+newmtl Stem21Mtl
+Material Color
+Ka 0.499505 0.487765 0.378676
+Kd 0.499505 0.487765 0.378676
+Ks 0.197843 0.193193 0.149986 
+
+d 1
+
+Ns 0
+
+newmtl Tip3Mtl
+Material Color
+Ka 0.139022 0.499505 0.38891
+Kd 0.139022 0.499505 0.38891
+Ks 0.0550638 0.197843 0.154039 
+
+d 1
+
+Ns 0
+
+newmtl Leaf29Mtl
+Material Color
+Ka 0.0370285 0.111299 0.0242229
+Kd 0.0370285 0.111299 0.0242229
+Ks 0.00232336 0.00698349 0.00151987 
+
+d 1
+
+Ns 0
+
+newmtl Leaf33Mtl
+Material Color
+Ka 0.116576 0.344026 0.0759261
+Kd 0.116576 0.344026 0.0759261
+Ks 0.00731456 0.0215859 0.00476399 
+
+d 1
+
+Ns 0
+

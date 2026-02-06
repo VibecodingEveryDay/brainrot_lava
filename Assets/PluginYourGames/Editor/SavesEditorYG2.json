@@ -1,0 +1,90 @@
+{
+    "balanceCount": 803,
+    "balanceScaler": "M",
+    "Brainrots": [],
+    "PlayerSpeedLevel": 22,
+    "OpeningLevel": 21,
+    "PlacedBrainrots": [
+        {
+            "placementID": 12,
+            "brainrotName": "TralaleroTralala",
+            "level": 2,
+            "rarity": "Epic",
+            "baseIncome": 1742
+        },
+        {
+            "placementID": 13,
+            "brainrotName": "TorrtuginniDragonfrutini",
+            "level": 20,
+            "rarity": "Rare",
+            "baseIncome": 194
+        },
+        {
+            "placementID": 14,
+            "brainrotName": "BisonteGiuppitere",
+            "level": 8,
+            "rarity": "Mythic",
+            "baseIncome": 144
+        }
+    ],
+    "EarnPanelBalances": [
+        {
+            "panelID": 3,
+            "accumulatedBalance": 0.0
+        },
+        {
+            "panelID": 4,
+            "accumulatedBalance": 0.0
+        },
+        {
+            "panelID": 2,
+            "accumulatedBalance": 0.0
+        },
+        {
+            "panelID": 6,
+            "accumulatedBalance": 0.0
+        },
+        {
+            "panelID": 7,
+            "accumulatedBalance": 0.0
+        },
+        {
+            "panelID": 1,
+            "accumulatedBalance": 0.0
+        },
+        {
+            "panelID": 5,
+            "accumulatedBalance": 0.0
+        },
+        {
+            "panelID": 0,
+            "accumulatedBalance": 0.0
+        },
+        {
+            "panelID": 12,
+            "accumulatedBalance": 6793800.0
+        },
+        {
+            "panelID": 13,
+            "accumulatedBalance": 2261070.0
+        },
+        {
+            "panelID": 14,
+            "accumulatedBalance": 28512000.0
+        }
+    ],
+    "AttackPowerLevel": 0,
+    "CurrentUltimate": "IsStrongBeat1",
+    "UnlockedLadders": [
+        1
+    ],
+    "intExample": 5,
+    "strExample": "Hello!",
+    "boolExample": [
+        false,
+        false,
+        false,
+        false
+    ],
+    "idSave": 2723
+}

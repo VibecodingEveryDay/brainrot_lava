@@ -1,0 +1,54 @@
+newmtl TralaleloTralala0031Mtl
+Material Color
+Ka 0.0384727 0.293216 0.585973
+Kd 0.0384727 0.293216 0.585973
+Ks 0.00241398 0.0183979 0.0367669 
+
+d 1
+
+Ns 0
+
+newmtl TralaleloTralala1Mtl
+Material Color
+Ka 0.0563741 0.163641 0.339223
+Kd 0.0563741 0.163641 0.339223
+Ks 0.0223286 0.0648145 0.134359 
+
+d 1
+
+Ns 0
+
+newmtl TralaleloTralala0011Mtl
+Material Color
+Ka 0 0 0
+Kd 0 0 0
+Ks 0 0 0 
+
+d 1
+
+Ns 0
+
+newmtl TralaleloTralala0041Mtl
+Material Color
+Ka 0.373615 0.368591 0.383775
+Kd 0.373615 0.368591 0.383775
+Ks 0.0322335 0.0318 0.03311 
+
+d 1
+
+Ns 255
+
+map_Ka TralaleloTralala0041_diff.png
+map_Kd TralaleloTralala0041_diff.png
+map_d TralaleloTralala0041_diff.png
+
+newmtl TralaleloTralala0021Mtl
+Material Color
+Ka 0.932277 0.932277 0.932277
+Kd 0.932277 0.932277 0.932277
+Ks 0.0584958 0.0584958 0.0584958 
+
+d 1
+
+Ns 0
+

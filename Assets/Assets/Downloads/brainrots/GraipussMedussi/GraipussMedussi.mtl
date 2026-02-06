@@ -1,0 +1,44 @@
+newmtl Cube1Mtl
+Material Color
+Ka 0.173439 0.042987 0.259027
+Kd 0.173439 0.042987 0.259027
+Ks 0.0686955 0.0170262 0.102595 
+
+d 1
+
+Ns 0
+
+newmtl Circle1Mtl
+Material Color
+Ka 0.259027 0.0677246 0.353741
+Kd 0.259027 0.0677246 0.353741
+Ks 0.102595 0.0268243 0.140109 
+
+d 1
+
+Ns 0
+
+newmtl Circle0011Mtl
+Material Color
+Ka 0.373615 0.368591 0.383775
+Kd 0.373615 0.368591 0.383775
+Ks 0.0322335 0.0318 0.03311 
+
+d 1
+
+Ns 255
+
+map_Ka Circle0011_diff.png
+map_Kd Circle0011_diff.png
+map_d Circle0011_diff.png
+
+newmtl Cube0041Mtl
+Material Color
+Ka 0.363604 0.121986 0.47044
+Kd 0.363604 0.121986 0.47044
+Ks 0.144016 0.0483159 0.186331 
+
+d 1
+
+Ns 0
+

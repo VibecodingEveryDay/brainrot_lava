@@ -1,0 +1,24 @@
+newmtl Cube0101Mtl
+Material Color
+Ka 0.00455975 0.0033027 0.0134734
+Kd 0.00455975 0.0033027 0.0134734
+Ks 0.00180602 0.00130813 0.00533652 
+
+d 1
+
+Ns 0
+
+newmtl TralaleloTralala0011Mtl
+Material Color
+Ka 0.373615 0.368591 0.383775
+Kd 0.373615 0.368591 0.383775
+Ks 0.0322335 0.0318 0.03311 
+
+d 1
+
+Ns 255
+
+map_Ka TralaleloTralala0011_diff.png
+map_Kd TralaleloTralala0011_diff.png
+map_d TralaleloTralala0011_diff.png
+
