@@ -14,7 +14,10 @@ using YG;
 public class GradePanel : MonoBehaviour
 {
     [Header("Настройки панели")]
-    [Tooltip("ID панели для связи с PlacementPanel (должен совпадать с panelID в PlacementPanel)")]
+    [Tooltip("Прямая ссылка на PlacementPanel (если задана, id игнорируется для связи)")]
+    [SerializeField] private PlacementPanel directLinkedPanel;
+    
+    [Tooltip("ID панели для связи с PlacementPanel (если directLinkedPanel не задан, ищется по panelID)")]
     [SerializeField] private int id = 0;
     
     [Tooltip("Радиус обнаружения игрока (панель скрывается, если игрок дальше этого расстояния)")]
@@ -118,8 +121,45 @@ public class GradePanel : MonoBehaviour
         // Кэшируем все Renderer компоненты для визуального скрытия
         renderers = GetComponentsInChildren<Renderer>(true);
         
-        // Кэшируем все Collider компоненты для отключения взаимодействия
+        // ВАЖНО: MeshCollider с convex=false не участвует в raycast. Добавляем BoxCollider для кликов.
+        EnsureRaycastCollider();
+        
+        // Кэшируем все Collider компоненты для отключения взаимодействия (после EnsureRaycastCollider)
         colliders = GetComponentsInChildren<Collider>(true);
+    }
+    
+    /// <summary>
+    /// Добавляет BoxCollider для raycast, если текущий коллайдер не поддерживает raycast (non-convex MeshCollider).
+    /// </summary>
+    private void EnsureRaycastCollider()
+    {
+        Collider col = GetComponent<Collider>();
+        if (col == null) col = GetComponentInChildren<Collider>();
+        bool needBox = col == null || (col is MeshCollider mc && !mc.convex);
+        if (needBox)
+        {
+            BoxCollider box = gameObject.GetComponent<BoxCollider>();
+            if (box == null) box = gameObject.AddComponent<BoxCollider>();
+            box.isTrigger = true;
+            box.enabled = true;
+            Renderer r = GetComponentInChildren<Renderer>();
+            if (r != null)
+            {
+                Bounds b = r.bounds;
+                box.center = transform.InverseTransformPoint(b.center);
+                Vector3 lossy = transform.lossyScale;
+                float expand = 1.8f; // Увеличиваем зону клика для надёжности со всех ракурсов
+                box.size = new Vector3(
+                    Mathf.Max(1f, b.size.x / Mathf.Max(0.001f, lossy.x) * expand),
+                    Mathf.Max(1f, b.size.y / Mathf.Max(0.001f, lossy.y) * expand),
+                    Mathf.Max(1f, b.size.z / Mathf.Max(0.001f, lossy.z) * expand));
+            }
+            else
+            {
+                box.center = Vector3.zero;
+                box.size = Vector3.one * 3f;
+            }
+        }
     }
     
     private void Start()
@@ -152,17 +192,31 @@ public class GradePanel : MonoBehaviour
     }
     
     /// <summary>
-    /// Находит связанную PlacementPanel по ID
+    /// Находит связанную PlacementPanel (прямая ссылка, в родителе, или по ID)
     /// </summary>
     private void FindLinkedPlacementPanel()
     {
-        linkedPlacementPanel = PlacementPanel.GetPanelByID(id);
-        if (linkedPlacementPanel == null)
+        if (directLinkedPanel != null)
         {
-            if (debug)
+            linkedPlacementPanel = directLinkedPanel;
+            return;
+        }
+        // Ищем PlacementPanel в родительской иерархии (типичная структура BR_Placement)
+        Transform p = transform.parent;
+        while (p != null)
+        {
+            PlacementPanel panel = p.GetComponentInChildren<PlacementPanel>();
+            if (panel != null)
             {
-                Debug.LogWarning($"[GradePanel] PlacementPanel с ID {id} не найдена!");
+                linkedPlacementPanel = panel;
+                return;
             }
+            p = p.parent;
+        }
+        linkedPlacementPanel = PlacementPanel.GetPanelByID(id);
+        if (linkedPlacementPanel == null && debug)
+        {
+            Debug.LogWarning($"[GradePanel] PlacementPanel не найдена! Назначьте directLinkedPanel или проверьте panelID.");
         }
     }
     
@@ -408,12 +462,14 @@ public class GradePanel : MonoBehaviour
     }
     
     /// <summary>
-    /// Обрабатывает клик мыши через Raycast
+    /// Обрабатывает клик мыши / касание через Raycast
     /// </summary>
     private void HandleMouseClick()
     {
-        // Проверяем, была ли нажата левая кнопка мыши
-        if (!Input.GetMouseButtonDown(0))
+        // Проверяем: клик мыши ИЛИ касание (для мобильных)
+        bool mouseDown = Input.GetMouseButtonDown(0);
+        bool touchBegan = Input.touchCount > 0 && Input.GetTouch(0).phase == UnityEngine.TouchPhase.Began;
+        if (!mouseDown && !touchBegan)
         {
             return;
         }
@@ -465,24 +521,22 @@ public class GradePanel : MonoBehaviour
             return;
         }
         
-        // Создаём луч из позиции мыши
-        Ray ray = mainCamera.ScreenPointToRay(Input.mousePosition);
-        RaycastHit hit;
+        // Позиция для луча: мышь или первое касание
+        Vector2 screenPos = mouseDown ? (Vector2)Input.mousePosition : Input.GetTouch(0).position;
+        Ray ray = mainCamera.ScreenPointToRay(screenPos);
         
-        // Проверяем, попал ли луч в коллайдер этого объекта или его дочерних объектов
-        Collider col = GetComponent<Collider>();
-        if (col == null)
+        // RaycastAll: ловим клик даже если brainrot/placement впереди — обрабатываем, если луч попал в GradePanel
+        RaycastHit[] hits = Physics.RaycastAll(ray, Mathf.Infinity);
+        bool hitGradePanel = false;
+        foreach (RaycastHit hit in hits)
         {
-            col = GetComponentInChildren<Collider>();
+            if (hit.collider != null && (hit.collider.transform == transform || hit.collider.transform.IsChildOf(transform)))
+            {
+                hitGradePanel = true;
+                break;
+            }
         }
-        
-        if (col == null)
-        {
-            return;
-        }
-        
-        // Проверяем пересечение луча с коллайдером
-        if (col.Raycast(ray, out hit, Mathf.Infinity))
+        if (hitGradePanel)
         {
             // ВАЖНО: При быстрых кликах проверяем, не идет ли уже обработка
             // Это предотвращает множественные вызовы ProcessUpgrade при быстрых кликах

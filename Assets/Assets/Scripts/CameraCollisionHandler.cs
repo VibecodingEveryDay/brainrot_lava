@@ -199,6 +199,29 @@ public class CameraCollisionHandler : MonoBehaviour
     }
     
     /// <summary>
+    /// Дополнительная проверка тонким лучом от цели к камере — гарантирует попадание в меш ступенек
+    /// и тонкие грани, которые SphereCast может пропустить.
+    /// </summary>
+    private float GetRaycastSafeDistanceFromTarget(float maxDistance)
+    {
+        if (target == null) return maxDistance;
+        Vector3 dirFromTargetToCamera = (transform.position - target.position);
+        float len = dirFromTargetToCamera.magnitude;
+        if (len < 0.001f) return maxDistance;
+        dirFromTargetToCamera /= len;
+        RaycastHit hit;
+        if (Physics.Raycast(target.position, dirFromTargetToCamera, out hit, maxDistance, obstacleMask, QueryTriggerInteraction.Ignore))
+        {
+            float safe = hit.distance - collisionOffset;
+            safe = Mathf.Clamp(safe, minDistance, maxDistance);
+            if (showDebugRays)
+                Debug.DrawRay(target.position, dirFromTargetToCamera * hit.distance, Color.cyan);
+            return safe;
+        }
+        return maxDistance;
+    }
+
+    /// <summary>
     /// Проверяет препятствия между камерой и целью с помощью SphereCast
     /// SphereCast выполняется от камеры к CameraTarget (как указано в требованиях)
     /// Также проверяет, не находится ли камера уже внутри препятствия
@@ -241,8 +264,8 @@ public class CameraCollisionHandler : MonoBehaviour
                 obstacleMask,
                 QueryTriggerInteraction.Ignore))
             {
-                // Препятствий нет на пути к стандартному расстоянию - возвращаем стандартное расстояние
-                return defaultDistance;
+                // Препятствий нет по SphereCast — дополнительно проверяем тонким лучом (ступеньки, тонкие меши)
+                return GetRaycastSafeDistanceFromTarget(defaultDistance);
             }
         }
         
@@ -303,7 +326,7 @@ public class CameraCollisionHandler : MonoBehaviour
                     Debug.DrawRay(rayStart, Vector3.up * 0.5f, Color.red);
                 }
                 
-                return safeDistance;
+                return GetRaycastSafeDistanceFromTarget(safeDistance);
             }
             else
             {
@@ -338,7 +361,7 @@ public class CameraCollisionHandler : MonoBehaviour
                         Debug.DrawRay(rayStart, Vector3.up * 0.5f, Color.magenta);
                     }
                     
-                    return safeDistance;
+                    return GetRaycastSafeDistanceFromTarget(safeDistance);
                 }
                 else
                 {
@@ -352,7 +375,7 @@ public class CameraCollisionHandler : MonoBehaviour
                         Debug.DrawRay(rayStart, directionToTarget * distanceToTarget, Color.magenta);
                     }
                     
-                    return aggressiveDistance;
+                    return GetRaycastSafeDistanceFromTarget(aggressiveDistance);
                 }
             }
         }
@@ -402,11 +425,12 @@ public class CameraCollisionHandler : MonoBehaviour
             // Ограничиваем безопасное расстояние минимальным значением
             safeDistance = Mathf.Max(safeDistance, minDistance);
             
-            return safeDistance;
+            // Учитываем тонкий луч (ступеньки, грани меша) — камера не зайдёт за геометрию
+            return GetRaycastSafeDistanceFromTarget(safeDistance);
         }
         
-        // Препятствий нет, возвращаем стандартную дистанцию
-        return defaultDistance;
+        // Препятствий нет по SphereCast — проверяем тонким лучом (меш ступенек и т.п.)
+        return GetRaycastSafeDistanceFromTarget(defaultDistance);
     }
     
     /// <summary>

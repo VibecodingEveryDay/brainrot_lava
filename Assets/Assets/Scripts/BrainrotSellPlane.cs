@@ -13,12 +13,26 @@ public class BrainrotSellPlane : MonoBehaviour
     [Tooltip("Множитель продажи (сколько раз умножается доход в секунду)")]
     [SerializeField] private float sellMultiplier = 20f;
     
+    [Header("Визуал")]
+    [Tooltip("Рендерер зоны продажи (красная плоскость). Если не задан — берётся с этого объекта или из детей")]
+    [SerializeField] private Renderer sellZoneRenderer;
+    
+    [Tooltip("Длительность мигания цветом при продаже (красный → жёлтый → красный)")]
+    [SerializeField] private float sellColorFlashDuration = 0.5f;
+    
+    [Tooltip("Цвет зоны по умолчанию (красный)")]
+    [SerializeField] private Color defaultZoneColor = new Color(0.9f, 0.15f, 0.15f, 1f);
+    
+    [Tooltip("Цвет при «вспышке» (жёлтый)")]
+    [SerializeField] private Color flashColor = new Color(1f, 0.9f, 0.2f, 1f);
+    
     [Header("Отладка")]
     [Tooltip("Показывать отладочные сообщения")]
     [SerializeField] private bool debug = false;
     
-    // Коллайдер для обнаружения брейнротов (должен быть триггером)
     private Collider sellPlaneCollider;
+    private Material sellZoneMaterial;
+    private Coroutine colorFlashRoutine;
     
     // Список брейнротов, которые находятся в зоне продажи
     private System.Collections.Generic.List<BrainrotObject> brainrotsInZone = new System.Collections.Generic.List<BrainrotObject>();
@@ -29,20 +43,26 @@ public class BrainrotSellPlane : MonoBehaviour
     
     private void Awake()
     {
-        // Находим коллайдер (должен быть триггером)
         sellPlaneCollider = GetComponent<Collider>();
         if (sellPlaneCollider == null)
-        {
             sellPlaneCollider = GetComponentInChildren<Collider>();
-        }
         
         if (sellPlaneCollider == null)
-        {
             Debug.LogError($"[BrainrotSellPlane] На объекте {gameObject.name} не найден Collider! Добавьте Collider с включенным IsTrigger.");
-        }
         else if (!sellPlaneCollider.isTrigger)
-        {
             Debug.LogWarning($"[BrainrotSellPlane] Коллайдер на объекте {gameObject.name} не является триггером! Включите IsTrigger в настройках коллайдера.");
+        
+        if (sellZoneRenderer == null)
+            sellZoneRenderer = GetComponent<Renderer>();
+        if (sellZoneRenderer == null)
+            sellZoneRenderer = GetComponentInChildren<Renderer>();
+        if (sellZoneRenderer != null && Application.isPlaying)
+        {
+            sellZoneMaterial = sellZoneRenderer.material;
+            if (sellZoneMaterial.HasProperty("_BaseColor"))
+                defaultZoneColor = sellZoneMaterial.GetColor("_BaseColor");
+            else if (sellZoneMaterial.HasProperty("_Color"))
+                defaultZoneColor = sellZoneMaterial.GetColor("_Color");
         }
     }
     
@@ -328,13 +348,57 @@ public class BrainrotSellPlane : MonoBehaviour
         // Удаляем объект из сцены
         Destroy(brainrot.gameObject);
         
-        // Удаляем из списка брейнротов в зоне
         brainrotsInZone.Remove(brainrot);
         
+        PlaySellEffects();
+        
         if (debug)
-        {
             Debug.Log($"[BrainrotSellPlane] Брейнрот '{brainrotName}' продан и удалён из мира");
+    }
+    
+    private void PlaySellEffects()
+    {
+        if (colorFlashRoutine != null)
+            StopCoroutine(colorFlashRoutine);
+        colorFlashRoutine = StartCoroutine(AnimateSellZoneColor());
+        GameObject effectObj = new GameObject("SellZoneEffect");
+        effectObj.transform.SetParent(transform.parent != null ? transform.parent : transform);
+        SellZoneCollectEffect effect = effectObj.AddComponent<SellZoneCollectEffect>();
+        Transform visualT = sellZoneRenderer != null ? sellZoneRenderer.transform : transform;
+        effect.Init(visualT);
+    }
+    
+    private IEnumerator AnimateSellZoneColor()
+    {
+        if (sellZoneMaterial == null)
+        {
+            colorFlashRoutine = null;
+            yield break;
         }
+        float half = Mathf.Max(0.01f, sellColorFlashDuration * 0.5f);
+        float elapsed = 0f;
+        while (elapsed < half)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / half);
+            Color c = Color.Lerp(defaultZoneColor, flashColor, t);
+            if (sellZoneMaterial.HasProperty("_BaseColor")) sellZoneMaterial.SetColor("_BaseColor", c);
+            if (sellZoneMaterial.HasProperty("_Color")) sellZoneMaterial.SetColor("_Color", c);
+            yield return null;
+        }
+        elapsed = 0f;
+        while (elapsed < half)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / half);
+            Color c = Color.Lerp(flashColor, defaultZoneColor, t);
+            if (sellZoneMaterial.HasProperty("_BaseColor")) sellZoneMaterial.SetColor("_BaseColor", c);
+            if (sellZoneMaterial.HasProperty("_Color")) sellZoneMaterial.SetColor("_Color", c);
+            yield return null;
+        }
+        if (sellZoneMaterial.HasProperty("_BaseColor")) sellZoneMaterial.SetColor("_BaseColor", defaultZoneColor);
+        if (sellZoneMaterial.HasProperty("_Color")) sellZoneMaterial.SetColor("_Color", defaultZoneColor);
+        colorFlashRoutine = null;
     }
     
     /// <summary>

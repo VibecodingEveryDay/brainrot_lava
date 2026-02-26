@@ -943,11 +943,36 @@ public class InteractableObject : MonoBehaviour
                         continue;
                     }
                     
-                    // Активируем все дочерние элементы (кроме "E" на мобильных)
+                    // ВАЖНО: На desktop устройствах НЕ активируем элемент "Tap" (Image с именем "Tap")
+                    // На мобильных устройствах показываем "Tap", на desktop скрываем
+                    if (!isMobileDevice && child.name.Equals("Tap", System.StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Скрываем элемент "Tap" на desktop устройствах
+                        if (child.gameObject.activeSelf)
+                        {
+                            child.gameObject.SetActive(false);
+                            if (debugMode)
+                            {
+                                Debug.Log($"[InteractableObject] {gameObject.name}: Элемент 'Tap' скрыт на desktop устройстве");
+                            }
+                        }
+                        continue; // Пропускаем дальнейшую обработку элемента "Tap" на desktop
+                    }
+                    
+                    // Активируем все дочерние элементы (кроме "E" на мобильных и "Tap" на desktop)
                     if (!child.gameObject.activeSelf)
                     {
                         child.gameObject.SetActive(true);
                         activatedCount++;
+                        
+                        // Если это элемент "Tap" на мобильном устройстве, логируем
+                        if (isMobileDevice && child.name.Equals("Tap", System.StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (debugMode)
+                            {
+                                Debug.Log($"[InteractableObject] {gameObject.name}: Элемент 'Tap' активирован на мобильном устройстве");
+                            }
+                        }
                     }
                     
                     // Убеждаемся, что все Image компоненты видимы
@@ -955,6 +980,13 @@ public class InteractableObject : MonoBehaviour
                     if (isMobileDevice && child.name.Equals("E", System.StringComparison.OrdinalIgnoreCase))
                     {
                         // Пропускаем обработку Image "E" на мобильных устройствах
+                        continue;
+                    }
+                    
+                    // ВАЖНО: На desktop устройствах пропускаем обработку Image "Tap" (она скрыта)
+                    if (!isMobileDevice && child.name.Equals("Tap", System.StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Пропускаем обработку Image "Tap" на desktop устройствах
                         continue;
                     }
                     

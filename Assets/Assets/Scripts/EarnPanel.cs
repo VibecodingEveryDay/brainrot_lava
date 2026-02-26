@@ -21,12 +21,37 @@ public class EarnPanel : MonoBehaviour
     [Tooltip("Префаб эффекта, который будет спавниться при сборе дохода")]
     [SerializeField] private GameObject collectEffectPrefab;
     
+    [Tooltip("Эффект «золотого» накопления: показывается, когда накоплено ≥ 20 сек дохода. Префаб: BoldVFXPackDemo/Content/URP/Prefabs/FX_Shimmering_Yellow или Built-in")]
+    [SerializeField] private GameObject shimmerEffectPrefab;
+    
+    [Tooltip("Масштаб эффекта shimmer (FX_Shimmering_Yellow)")]
+    [SerializeField] private float shimmerEffectScale = 2.5f;
+    
     [Header("Настройки обнаружения игрока")]
     [Tooltip("Transform игрока (перетащите из иерархии)")]
     [SerializeField] private Transform playerTransform;
     
     [Tooltip("Радиус обнаружения игрока (игрок считается на панели, если находится в этом радиусе)")]
     [SerializeField] private float detectionRadius = 2f;
+    
+    [Header("Визуальная обратная связь кнопки")]
+    [Tooltip("Transform 3D кнопки для смещения по Y (если не назначен, используется текущий объект)")]
+    [SerializeField] private Transform buttonTransform;
+    
+    [Tooltip("MeshRenderer 3D кнопки (если не назначен, ищется на текущем или дочернем объекте)")]
+    [SerializeField] private Renderer buttonRenderer;
+    
+    [Tooltip("Цвет кнопки когда игрок НЕ на панели")]
+    [SerializeField] private Color normalColor = new Color(0.2f, 0.8f, 0.2f); // Зелёный
+    
+    [Tooltip("Цвет кнопки когда игрок на панели")]
+    [SerializeField] private Color pressedColor = Color.yellow;
+    
+    [Tooltip("Смещение кнопки вниз по Y при наступлении")]
+    [SerializeField] private float pressedYOffset = -0.3f;
+    
+    [Tooltip("Скорость анимации перехода")]
+    [SerializeField] private float visualTransitionSpeed = 10f;
     
     [Header("Отладка")]
     [Tooltip("Показывать отладочные сообщения в консоли")]
@@ -56,6 +81,15 @@ public class EarnPanel : MonoBehaviour
     // Кэш для оптимизации - обновляем текст только при изменении
     private string lastFormattedBalance = "";
     private double lastAccumulatedBalance = -1;
+    
+    // Визуальная обратная связь
+    private Vector3 originalButtonWorldPos;
+    private Vector3 originalTextWorldPos;
+    private Material buttonMaterial;
+    private float currentColorBlend = 0f;
+    
+    // Эффект накопления (FX_Shimmering_Yellow) — один экземпляр, включается/выключается
+    private GameObject shimmerEffectInstance;
     
     private void Awake()
     {
@@ -89,6 +123,24 @@ public class EarnPanel : MonoBehaviour
                 }
             }
         }
+        
+        // Инициализация визуальной обратной связи
+        if (buttonRenderer == null)
+        {
+            buttonRenderer = GetComponent<Renderer>();
+            if (buttonRenderer == null)
+            {
+                buttonRenderer = GetComponentInChildren<Renderer>();
+            }
+        }
+        if (buttonRenderer != null && buttonRenderer.sharedMaterial != null)
+        {
+            buttonMaterial = buttonRenderer.material; // Создаём instance материала
+        }
+        Transform buttonT = buttonTransform != null ? buttonTransform : transform;
+        originalButtonWorldPos = buttonT.position;
+        if (moneyText != null)
+            originalTextWorldPos = moneyText.transform.position;
     }
     
     private void Start()
@@ -177,6 +229,84 @@ public class EarnPanel : MonoBehaviour
             {
                 UpdateMoneyText();
             }
+        }
+        
+        // Обновляем визуальную обратную связь кнопки (цвет и позиция)
+        UpdateButtonVisual();
+        
+        // Показываем эффект FX_Shimmering_Yellow, если накоплено ≥ 20 сек дохода
+        UpdateShimmerEffect();
+    }
+    
+    /// <summary>
+    /// Показывает эффект FX_Shimmering_Yellow, когда накопленный доход ≥ 20× заработка в секунду (за 20 сек).
+    /// </summary>
+    private void UpdateShimmerEffect()
+    {
+        if (shimmerEffectPrefab == null) return;
+        
+        double incomePerSecond = 0.0;
+        if (placedBrainrot != null && placedBrainrot.IsPlaced() && !placedBrainrot.IsCarried())
+            incomePerSecond = placedBrainrot.GetFinalIncome();
+        
+        double threshold = incomePerSecond * 20.0;
+        bool shouldShow = incomePerSecond > 0.0 && accumulatedBalance >= threshold;
+        
+        if (shouldShow)
+        {
+            if (shimmerEffectInstance == null)
+            {
+                shimmerEffectInstance = Instantiate(shimmerEffectPrefab, transform.position, Quaternion.identity);
+                shimmerEffectInstance.transform.SetParent(transform);
+                shimmerEffectInstance.transform.localPosition = Vector3.zero;
+            }
+            // Компенсируем масштаб родителя, чтобы мировой масштаб эффекта был равномерным (2.5, 2.5, 2.5)
+            Vector3 parentScale = transform.lossyScale;
+            float sx = Mathf.Abs(parentScale.x) > 0.001f ? shimmerEffectScale / parentScale.x : shimmerEffectScale;
+            float sy = Mathf.Abs(parentScale.y) > 0.001f ? shimmerEffectScale / parentScale.y : shimmerEffectScale;
+            float sz = Mathf.Abs(parentScale.z) > 0.001f ? shimmerEffectScale / parentScale.z : shimmerEffectScale;
+            shimmerEffectInstance.transform.localScale = new Vector3(sx, sy, sz);
+            if (!shimmerEffectInstance.activeInHierarchy)
+                shimmerEffectInstance.SetActive(true);
+        }
+        else
+        {
+            if (shimmerEffectInstance != null && shimmerEffectInstance.activeInHierarchy)
+                shimmerEffectInstance.SetActive(false);
+        }
+    }
+    
+    /// <summary>
+    /// Обновляет визуальное состояние кнопки (цвет и смещение по Y)
+    /// </summary>
+    private void UpdateButtonVisual()
+    {
+        if (buttonMaterial == null) return;
+        
+        // Плавный переход blend (0 = нормальное состояние, 1 = нажатое)
+        float targetBlend = isPlayerOnPanel ? 1f : 0f;
+        currentColorBlend = Mathf.MoveTowards(currentColorBlend, targetBlend, Time.deltaTime * visualTransitionSpeed);
+        
+        // Применяем цвет
+        Color newColor = Color.Lerp(normalColor, pressedColor, currentColorBlend);
+        if (buttonMaterial.HasProperty("_BaseColor"))
+        {
+            buttonMaterial.SetColor("_BaseColor", newColor);
+        }
+        else if (buttonMaterial.HasProperty("_Color"))
+        {
+            buttonMaterial.SetColor("_Color", newColor);
+        }
+        
+        // Плавное смещение по Y — только EarnPanel (меш) и Text, Cube не трогаем
+        Transform buttonT = buttonTransform != null ? buttonTransform : transform;
+        float offset = isPlayerOnPanel ? Mathf.Abs(pressedYOffset) : 0f;
+        Vector3 targetButtonPos = originalButtonWorldPos + Vector3.down * offset;
+        buttonT.position = Vector3.Lerp(buttonT.position, targetButtonPos, Time.deltaTime * visualTransitionSpeed);
+        if (moneyText != null)
+        {
+            Vector3 targetTextPos = originalTextWorldPos + Vector3.down * offset;
+            moneyText.transform.position = Vector3.Lerp(moneyText.transform.position, targetTextPos, Time.deltaTime * visualTransitionSpeed);
         }
     }
     
@@ -563,61 +693,41 @@ public class EarnPanel : MonoBehaviour
     }
     
     /// <summary>
-    /// Спавнит эффект сбора дохода на позиции панели
+    /// Спавнит эффект сбора дохода: полупрозрачный блок вокруг EarnPanel, анимация 500ms.
+    /// Дополнительно может спавнить collectEffectPrefab (частицы), если назначен.
     /// </summary>
     private void SpawnCollectEffect()
     {
-        if (collectEffectPrefab == null)
+        // Создаём эффект "Effect" — полупрозрачный блок, анимация 500ms
+        Transform buttonT = buttonTransform != null ? buttonTransform : transform;
+        GameObject effectObj = new GameObject("Effect");
+        effectObj.transform.SetParent(buttonT.parent);
+        EarnPanelCollectEffect effect = effectObj.AddComponent<EarnPanelCollectEffect>();
+        effect.Init(buttonT);
+
+        // Опционально: префаб частиц (если назначен)
+        if (collectEffectPrefab != null)
         {
-            if (debug)
+            Vector3 spawnPosition = transform.position;
+            GameObject effectInstance = Instantiate(collectEffectPrefab, spawnPosition, Quaternion.identity);
+            effectInstance.transform.localScale = Vector3.one * 2f;
+
+            ParticleSystem particles = effectInstance.GetComponent<ParticleSystem>();
+            if (particles != null)
             {
-                Debug.LogWarning("[EarnPanel] Префаб эффекта не назначен!");
-            }
-            return;
-        }
-        
-        // Спавним эффект на позиции панели
-        Vector3 spawnPosition = transform.position;
-        GameObject effectInstance = Instantiate(collectEffectPrefab, spawnPosition, Quaternion.identity);
-        
-        // Увеличиваем масштаб эффекта в 2 раза
-        effectInstance.transform.localScale = Vector3.one * 2f;
-        
-        // Автоматически уничтожаем эффект после завершения (если это ParticleSystem)
-        ParticleSystem particles = effectInstance.GetComponent<ParticleSystem>();
-        if (particles != null)
-        {
-            ParticleSystem.MainModule main = particles.main;
-            float duration = main.duration;
-            
-            // Получаем максимальное время жизни частиц
-            float maxLifetime = 0f;
-            if (main.startLifetime.mode == ParticleSystemCurveMode.Constant)
-            {
-                maxLifetime = main.startLifetime.constant;
-            }
-            else if (main.startLifetime.mode == ParticleSystemCurveMode.TwoConstants)
-            {
-                maxLifetime = main.startLifetime.constantMax;
+                ParticleSystem.MainModule main = particles.main;
+                float duration = main.duration;
+                float maxLifetime = main.startLifetime.mode == ParticleSystemCurveMode.Constant
+                    ? main.startLifetime.constant
+                    : (main.startLifetime.mode == ParticleSystemCurveMode.TwoConstants
+                        ? main.startLifetime.constantMax
+                        : 2f);
+                Destroy(effectInstance, duration + maxLifetime + 1f);
             }
             else
             {
-                // Для кривых используем максимальное значение по умолчанию
-                maxLifetime = 2f;
+                Destroy(effectInstance, 5f);
             }
-            
-            // Уничтожаем объект после завершения эффекта
-            Destroy(effectInstance, duration + maxLifetime + 1f); // +1 секунда для безопасности
-        }
-        else
-        {
-            // Если нет ParticleSystem, уничтожаем через 5 секунд
-            Destroy(effectInstance, 5f);
-        }
-        
-        if (debug)
-        {
-            Debug.Log($"[EarnPanel] Эффект сбора дохода спавнен на позиции {spawnPosition} с масштабом x2");
         }
     }
 }

@@ -67,8 +67,8 @@ Material:
     - _Reveal: 0.63
     - _ScrollSpeed2: 1
     - _Speed_1: 0.7
-    - _TriangleLenght: 0.8
-    - _TriangleWidth: 1.1
+    - _TriangleLenght: 0.7
+    - _TriangleWidth: 2
     - _Width: 0.5
     m_Colors:
     - _Color: {r: 1, g: 1, b: 1, a: 1}

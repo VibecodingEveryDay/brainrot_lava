@@ -32,16 +32,24 @@ public class ThirdPersonController : MonoBehaviour
     [SerializeField] private Animator animator;
     [SerializeField] private ThirdPersonCamera cameraController;
     
+    [Header("Animation")]
+    [Tooltip("Скорость воспроизведения анимации бега (1 = нормальная, 2 = в 2 раза быстрее)")]
+    [SerializeField] private float runAnimationSpeed = 1f;
+    
     [Header("Ground Check")]
     [SerializeField] private float groundCheckDistance = 0.2f;
     [Tooltip("Минимальный Y компонент нормали поверхности (0..1). Ниже — считаем стеной. 0.35 ≈ 70° от горизонтали (ступеньки проходят).")]
     [SerializeField] private float minGroundNormalY = 0.35f;
     [Tooltip("Длина луча вниз для проверки земли (от ног персонажа).")]
     [SerializeField] private float groundCheckRayLength = 0.5f;
+    [Tooltip("Дополнительная длина луча при падении/спуске (velocity.y <= 0), чтобы раньше засечь землю после прыжка со ступенек или при спуске вниз.")]
+    [SerializeField] private float groundCheckRayLengthWhenFalling = 0.4f;
+    [Tooltip("Смещение дополнительных лучей от центра (по горизонтали). Несколько лучей под капсулой надёжнее попадают в меш ступенек (stairs).")]
+    [SerializeField] private float groundCheckRayRadius = 0.25f;
     [Tooltip("Буфер времени (сек): считаем на земле ещё столько после потери контакта. Увеличено для ступенек.")]
-    [SerializeField] private float groundedBufferTime = 0.35f;
+    [SerializeField] private float groundedBufferTime = 0.5f;
     [Tooltip("Кадров без контакта с землёй перед переходом в «полёт» (гистерезис). Больше — меньше переключений на ступеньках.")]
-    [SerializeField] private int groundedFalseFramesRequired = 5;
+    [SerializeField] private int groundedFalseFramesRequired = 8;
     
     [Header("Jump Rotation")]
     [SerializeField] private float jumpRotationAngle = 10f; // Угол поворота модели при прыжке
@@ -271,22 +279,49 @@ public class ThirdPersonController : MonoBehaviour
     
     private void HandleGroundCheck()
     {
-        // Проверка земли лучом вниз с проверкой нормали: стены (normal.y ≈ 0) не считаем землёй.
-        // Порог minGroundNormalY допускает ступеньки и склоны; буфер уменьшает мерцание анимации на ступеньках.
+        // Несколько лучей вниз под капсулой (центр + 4 по окружности), чтобы надёжно попадать в меш ступенек (stairs).
+        // Один луч часто попадает в вертикальную грань ступеньки или промахивается при беге вверх/вниз.
         Vector3 capsuleBottom = transform.position + characterController.center + Vector3.down * (characterController.height * 0.5f);
-        float rayLength = groundCheckDistance + groundCheckRayLength;
+        float extraLength = (velocity.y <= 0f) ? groundCheckRayLengthWhenFalling : 0f;
+        float rayLength = groundCheckDistance + groundCheckRayLength + extraLength;
         bool hitValidGround = false;
-        bool rayHitAnything = false;
         
-        if (Physics.Raycast(capsuleBottom, Vector3.down, out RaycastHit hit, rayLength, ~0, QueryTriggerInteraction.Ignore))
+        Vector3 forward = transform.forward;
+        forward.y = 0f;
+        if (forward.sqrMagnitude < 0.01f) forward = Vector3.forward;
+        forward.Normalize();
+        Vector3 right = transform.right;
+        right.y = 0f;
+        if (right.sqrMagnitude < 0.01f) right = Vector3.right;
+        right.Normalize();
+        
+        Vector3[] rayOrigins = new Vector3[]
         {
-            rayHitAnything = hit.collider != null && hit.collider.gameObject != gameObject && !hit.collider.isTrigger;
-            if (rayHitAnything)
-                hitValidGround = hit.normal.y >= minGroundNormalY;
+            capsuleBottom,
+            capsuleBottom + forward * groundCheckRayRadius,
+            capsuleBottom - forward * groundCheckRayRadius,
+            capsuleBottom + right * groundCheckRayRadius,
+            capsuleBottom - right * groundCheckRayRadius
+        };
+        
+        for (int i = 0; i < rayOrigins.Length && !hitValidGround; i++)
+        {
+            if (Physics.Raycast(rayOrigins[i], Vector3.down, out RaycastHit hit, rayLength, ~0, QueryTriggerInteraction.Ignore))
+            {
+                if (hit.collider != null && hit.collider.gameObject != gameObject && !hit.collider.isTrigger)
+                {
+                    if (hit.normal.y >= minGroundNormalY)
+                    {
+                        hitValidGround = true;
+                        break;
+                    }
+                }
+            }
         }
         
-        // Земля: луч попал в пол (нормаль вверх) ИЛИ CC на земле при промахе луча (ступеньки) и не летим вверх
-        isActuallyGrounded = hitValidGround || (characterController.isGrounded && !rayHitAnything && velocity.y <= 0.1f);
+        // CharacterController на ступеньках часто даёт isGrounded = true; доверяем ему при несильном движении вверх (шаг на следующую ступеньку).
+        bool ccSaysGrounded = characterController.isGrounded && velocity.y <= 0.5f;
+        isActuallyGrounded = hitValidGround || ccSaysGrounded;
         
         // Обновляем время последнего контакта с землёй
         if (isActuallyGrounded)
@@ -319,10 +354,13 @@ public class ThirdPersonController : MonoBehaviour
             isGrounded = withinBuffer || !failedEnoughFrames;
         }
         
-        // На лестнице всегда считаем isGrounded = true
+        // На лестнице всегда считаем isGrounded = true и обновляем буфер «последнего контакта с землёй»,
+        // чтобы после прыжка/схода с лестницы не уходить в fly: даём время на приземление.
         if (isOnLadder)
         {
             isGrounded = true;
+            lastGroundedTime = Time.time;
+            groundedFalseFrameCount = 0;
         }
         
         // Сброс вертикальной скорости при приземлении
@@ -695,10 +733,11 @@ public class ThirdPersonController : MonoBehaviour
             }
             else
             {
-                // Восстанавливаем нормальную скорость анимации вне лестницы
-                if (animator.speed != 1f)
+                // Скорость анимации: при беге — runAnimationSpeed, иначе нормальная
+                float targetSpeed = (currentSpeed > 0.1f) ? runAnimationSpeed : 1f;
+                if (Mathf.Abs(animator.speed - targetSpeed) > 0.001f)
                 {
-                    animator.speed = 1f;
+                    animator.speed = targetSpeed;
                 }
             }
             
