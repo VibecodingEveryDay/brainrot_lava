@@ -4,8 +4,8 @@ using TMPro;
 using System.Collections;
 
 /// <summary>
-/// Управляет телепортацией (дом, зона башни). При 100% огня и нахождении игрока в зоне башни —
-/// показ "Вы проиграли!", телепорт в дом, удаление брейнрота из рук.
+/// Управляет телепортацией (дом, зона старта/финиша). При столкновении игрока с мячом — UI проигрыша,
+/// телепорт на базу, удаление брейнрота из рук и всех мячей. При 100% огня и нахождении в зоне StartFinish — то же.
 /// </summary>
 public class TeleportManager : MonoBehaviour
 {
@@ -20,8 +20,8 @@ public class TeleportManager : MonoBehaviour
     [Tooltip("Позиция дома для телепортации (после поражения от огня и т.д.)")]
     [SerializeField] private Transform housePos;
     
-    [Tooltip("Зона башни (объект с Collider trigger и TowerZoneTrigger). Игрок в зоне при 100% огня — поражение.")]
-    [SerializeField] private GameObject towerZoneTrigger;
+    [Tooltip("Зона старта/финиша (объект с Collider Is Trigger и скриптом StartFinishZone). Игрок в зоне при 100% огня — поражение.")]
+    [SerializeField] private GameObject startFinishZone;
     
     [Header("Lose Text (100% fire + player in tower zone)")]
     [Tooltip("Текст для сообщения о поражении (красный)")]
@@ -68,8 +68,8 @@ public class TeleportManager : MonoBehaviour
     private Transform playerTransform;
     private ThirdPersonController playerController;
     
-    // Игрок в зоне башни (триггер обновляется TowerZoneTrigger)
-    private bool playerInTowerZone = false;
+    // Игрок в зоне старта/финиша (триггер обновляется StartFinishZone)
+    private bool playerInStartFinishZone = false;
     
     // Уже обработали поражение от огня (чтобы не повторять)
     private bool loseFromFireHandled = false;
@@ -143,17 +143,17 @@ public class TeleportManager : MonoBehaviour
     }
     
     /// <summary>
-    /// Вызывается TowerZoneTrigger при входе игрока в зону башни.
+    /// Вызывается StartFinishZone при входе игрока в зону.
     /// </summary>
-    public void SetPlayerInTowerZone(bool inside)
+    public void SetPlayerInStartFinishZone(bool inside)
     {
-        playerInTowerZone = inside;
+        playerInStartFinishZone = inside;
     }
     
     /// <summary>
-    /// Вызывается TowerZoneTrigger при выходе игрока из зоны с брейнротом в руках.
+    /// Вызывается StartFinishZone при выходе игрока из зоны с брейнротом в руках.
     /// </summary>
-    public void OnPlayerExitedTowerZoneWithBrainrot(string brainrotName)
+    public void OnPlayerExitedStartFinishWithBrainrot(string brainrotName)
     {
         if (string.IsNullOrEmpty(brainrotName)) return;
         if (gotBrainrotText == null) return;
@@ -168,16 +168,41 @@ public class TeleportManager : MonoBehaviour
         StartNotificationHideAfterDelay(gotBrainrotText, cachedGotBrainrotTextBaseScale);
     }
     
+    /// <summary>
+    /// Вызывается при столкновении игрока с мячом: UI проигрыша, удаление брейнрота из рук, удаление всех мячей, телепорт на базу.
+    /// </summary>
+    public void OnPlayerHitByBall()
+    {
+        teleportingDueToLose = true;
+        ShowLoseText();
+        RemoveCarriedBrainrot();
+        DestroyAllBalls();
+        TeleportToHouse();
+    }
+
     private void OnDestroyFireProgressComplete()
     {
         if (loseFromFireHandled) return;
-        if (!playerInTowerZone) return;
+        if (!playerInStartFinishZone) return;
         
         loseFromFireHandled = true;
         teleportingDueToLose = true;
         ShowLoseText();
         RemoveCarriedBrainrot();
         TeleportToHouse();
+    }
+
+    /// <summary>
+    /// Удаляет все мячи на сцене (объекты с компонентом Ball).
+    /// </summary>
+    public void DestroyAllBalls()
+    {
+        Ball[] balls = FindObjectsByType<Ball>(FindObjectsSortMode.None);
+        for (int i = 0; i < balls.Length; i++)
+        {
+            if (balls[i] != null && balls[i].gameObject != null)
+                Destroy(balls[i].gameObject);
+        }
     }
     
     private void ShowLoseText()

@@ -874,6 +874,9 @@ public class GameStorage : MonoBehaviour
         // Очищаем список разблокированных лестниц
         YG2.saves.UnlockedLadders.Clear();
         
+        // Очищаем список скрытых стен
+        YG2.saves.HiddenWalls.Clear();
+        
         // Сохраняем изменения
         YG2.SaveProgress();
         
@@ -887,7 +890,14 @@ public class GameStorage : MonoBehaviour
             }
         }
         
-        Debug.Log("[GameStorage] Storage очищен: баланс, все Brainrot объекты, размещенные брейнроты, доходы earnpanel, уровень скорости, уровень открытия, сила игрока и разблокированные лестницы сброшены");
+        // Обновляем WallManager, чтобы скрытые стены снова стали видимыми
+        WallManager wallManager = FindFirstObjectByType<WallManager>();
+        if (wallManager != null)
+        {
+            wallManager.ApplySavedStates();
+        }
+        
+        Debug.Log("[GameStorage] Storage очищен: баланс, все Brainrot объекты, размещенные брейнроты, доходы earnpanel, уровень скорости, уровень открытия, сила игрока, разблокированные лестницы и скрытые стены сброшены");
     }
     
     /// <summary>
@@ -1152,6 +1162,55 @@ public class GameStorage : MonoBehaviour
     public List<int> GetUnlockedLadders()
     {
         return new List<int>(YG2.saves.UnlockedLadders);
+    }
+    
+    #endregion
+
+    #region Hidden Walls Methods
+    
+    /// <summary>
+    /// Проверить, скрыта ли стена с указанным ID.
+    /// </summary>
+    public bool IsWallHidden(int wallId)
+    {
+        return YG2.saves.HiddenWalls.Contains(wallId);
+    }
+    
+    /// <summary>
+    /// Установить состояние скрытия стены.
+    /// </summary>
+    public void SetWallHidden(int wallId, bool hidden)
+    {
+        if (hidden)
+        {
+            if (!YG2.saves.HiddenWalls.Contains(wallId))
+            {
+                YG2.saves.HiddenWalls.Add(wallId);
+            }
+        }
+        else
+        {
+            YG2.saves.HiddenWalls.Remove(wallId);
+        }
+        
+        Save();
+    }
+    
+    /// <summary>
+    /// Получить список ID скрытых стен.
+    /// </summary>
+    public List<int> GetHiddenWalls()
+    {
+        return new List<int>(YG2.saves.HiddenWalls);
+    }
+    
+    /// <summary>
+    /// Очистить список скрытых стен.
+    /// </summary>
+    public void ClearHiddenWalls()
+    {
+        YG2.saves.HiddenWalls.Clear();
+        Save();
     }
     
     #endregion

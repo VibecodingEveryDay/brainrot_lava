@@ -40,6 +40,8 @@ public class BrainrotDistanceHider : MonoBehaviour
 
     private float timer;
     private float rebuildTimer;
+    private float _emptyCacheRebuildCooldown;
+    private bool _playerNotFoundLogged;
 
     private readonly List<Entry> entries = new List<Entry>(256);
 
@@ -51,17 +53,37 @@ public class BrainrotDistanceHider : MonoBehaviour
         public bool currentlyHidden;
     }
 
+    private bool _delayedRebuildScheduled;
+
     private void Awake()
     {
         EnsurePlayer();
         RebuildCache();
     }
 
+    private void Start()
+    {
+        // Брейнроты могут создаваться в Start() (например PlaneBrSpawner) — пересобираем кэш с задержкой
+        if (!_delayedRebuildScheduled)
+        {
+            _delayedRebuildScheduled = true;
+            Invoke(nameof(DelayedRebuildCache), 0.25f);
+        }
+    }
+
+    private void DelayedRebuildCache()
+    {
+        RebuildCache();
+        RefreshNow();
+        if (debug)
+            Debug.Log("[BrainrotDistanceHider] DelayedRebuildCache выполнен.");
+    }
+
     private void OnEnable()
     {
         timer = 0f;
         rebuildTimer = 0f;
-        // На случай, если объекты/сцена изменились пока компонент был выключен
+        _delayedRebuildScheduled = false;
         RebuildCache();
         EnsurePlayer();
         RefreshNow();
@@ -82,10 +104,19 @@ public class BrainrotDistanceHider : MonoBehaviour
             }
         }
 
-        // Если кэш пуст (например, брейнроты появились позже) — пытаемся пересобрать.
+        // Если кэш пуст — пересобираем не чаще раза в 0.5 сек (FindObjectsByType дорогой).
         if (entries.Count == 0)
         {
-            RebuildCache();
+            _emptyCacheRebuildCooldown += Time.deltaTime;
+            if (_emptyCacheRebuildCooldown >= 0.5f)
+            {
+                _emptyCacheRebuildCooldown = 0f;
+                RebuildCache();
+            }
+        }
+        else
+        {
+            _emptyCacheRebuildCooldown = 0f;
         }
 
         if (updateInterval <= 0f)
@@ -107,7 +138,7 @@ public class BrainrotDistanceHider : MonoBehaviour
     {
         entries.Clear();
 
-        BrainrotObject[] brainrots = FindObjectsByType<BrainrotObject>(FindObjectsSortMode.None);
+        BrainrotObject[] brainrots = FindObjectsByType<BrainrotObject>(FindObjectsInactive.Include, FindObjectsSortMode.None);
         if (brainrots == null || brainrots.Length == 0) return;
 
         for (int i = 0; i < brainrots.Length; i++)
@@ -134,7 +165,15 @@ public class BrainrotDistanceHider : MonoBehaviour
 
     private void RefreshNow()
     {
-        if (playerTransform == null) return;
+        if (playerTransform == null)
+        {
+            if (!_playerNotFoundLogged)
+            {
+                _playerNotFoundLogged = true;
+                Debug.LogWarning("[BrainrotDistanceHider] Игрок не найден (тег 'Player'). Скрытие по дистанции не работает.", this);
+            }
+            return;
+        }
 
         float hideRangeSqr = hideRange * hideRange;
 
@@ -211,6 +250,8 @@ public class BrainrotDistanceHider : MonoBehaviour
     {
         GameObject player = GameObject.FindGameObjectWithTag("Player");
         playerTransform = player != null ? player.transform : null;
+        if (playerTransform != null)
+            _playerNotFoundLogged = false;
     }
 
     private void EnsurePlayer()

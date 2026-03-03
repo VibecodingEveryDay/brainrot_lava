@@ -823,6 +823,8 @@ public class InteractableObject : MonoBehaviour
             }
         }
         
+        ConfigureInteractionText(textUpdater);
+        
         // Добавляем компонент для обработки взаимодействия через тап/ЛКМ
         // ВАЖНО: Добавляем на корневой объект Canvas для правильной обработки событий
         GameObject handlerTarget = currentUIInstance;
@@ -1603,6 +1605,13 @@ public class InteractableObject : MonoBehaviour
     protected virtual void OnInteractionComplete()
     {
         // Переопределяется в наследниках для кастомной логики
+    }
+    
+    /// <summary>
+    /// Позволяет наследникам настроить текст взаимодействия в UI (например, "Купить / Buy").
+    /// </summary>
+    protected virtual void ConfigureInteractionText(InteractionTextUpdater textUpdater)
+    {
     }
     
     /// <summary>

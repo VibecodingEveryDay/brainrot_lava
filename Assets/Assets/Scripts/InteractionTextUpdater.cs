@@ -10,6 +10,12 @@ using YG;
 /// </summary>
 public class InteractionTextUpdater : MonoBehaviour
 {
+    private enum InteractionTextMode
+    {
+        TakePut,
+        Custom
+    }
+
     [Header("References")]
     [SerializeField] private TextMeshProUGUI textComponent;
     
@@ -18,6 +24,11 @@ public class InteractionTextUpdater : MonoBehaviour
     [SerializeField] private string enTextTake = "Take";
     [SerializeField] private string ruTextPut = "Поставить";
     [SerializeField] private string enTextPut = "Put";
+    
+    [Header("Custom Interaction Text")]
+    [SerializeField] private InteractionTextMode textMode = InteractionTextMode.TakePut;
+    [SerializeField] private string ruTextCustom = "Купить";
+    [SerializeField] private string enTextCustom = "Buy";
     
     private PlayerCarryController playerCarryController;
     private string currentLanguage = "ru";
@@ -133,11 +144,19 @@ public class InteractionTextUpdater : MonoBehaviour
             if (textComponent == null) return;
         }
         
-        // Определяем, есть ли брейнрот в руках
-        bool hasBrainrotInHands = playerCarryController != null && playerCarryController.GetCurrentCarriedObject() != null;
+        string newText;
         
-        // Выбираем текст в зависимости от состояния и языка
-        string newText = hasBrainrotInHands ? GetPutText() : GetTakeText();
+        if (textMode == InteractionTextMode.Custom)
+        {
+            newText = GetCustomText();
+        }
+        else
+        {
+            // Определяем, есть ли брейнрот в руках
+            bool hasBrainrotInHands = playerCarryController != null && playerCarryController.GetCurrentCarriedObject() != null;
+            // Выбираем текст в зависимости от состояния и языка
+            newText = hasBrainrotInHands ? GetPutText() : GetTakeText();
+        }
         
         // Обновляем текст только если он изменился
         if (textComponent.text != newText)
@@ -196,5 +215,35 @@ public class InteractionTextUpdater : MonoBehaviour
             default:
                 return enTextPut;
         }
+    }
+
+    private string GetCustomText()
+    {
+        switch (currentLanguage.ToLower())
+        {
+            case "ru":
+                return ruTextCustom;
+            case "en":
+            case "us":
+            case "as":
+            case "ai":
+                return enTextCustom;
+            default:
+                return enTextCustom;
+        }
+    }
+
+    public void SetCustomInteractionText(string ruText, string enText)
+    {
+        textMode = InteractionTextMode.Custom;
+        ruTextCustom = ruText;
+        enTextCustom = enText;
+        UpdateText();
+    }
+
+    public void UseDefaultTakePutText()
+    {
+        textMode = InteractionTextMode.TakePut;
+        UpdateText();
     }
 }

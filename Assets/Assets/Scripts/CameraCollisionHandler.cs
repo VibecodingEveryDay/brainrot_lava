@@ -165,26 +165,18 @@ public class CameraCollisionHandler : MonoBehaviour
             directionToTarget = -lastValidDirection;
         }
         
-        // ВАЖНО: Проверяем препятствия только если текущее расстояние близко к стандартному
-        // Это предотвращает ложные срабатывания после телепортации
-        // Если камера находится на стандартном расстоянии (или близко к нему), проверяем препятствия
-        // Если камера слишком близко, это может быть из-за предыдущей проверки, поэтому проверяем снова
-        float desiredDistance = CheckForObstacles(directionToTarget, defaultDistance);
+        // При открытом модальном окне максимальная дистанция камеры +25%
+        float effectiveMaxDistance = defaultDistance * (ModalOverlayManager.IsAnyModalOpen ? 1.25f : 1f);
         
-        // ВАЖНО: Если desiredDistance равен defaultDistance, но currentDistance меньше,
-        // это означает, что препятствий нет, и камера должна отдалиться
-        // Но если currentDistance уже близок к defaultDistance, не нужно резко менять расстояние
-        if (Mathf.Abs(desiredDistance - defaultDistance) < 0.01f && currentDistance < defaultDistance - 0.1f)
+        float desiredDistance = CheckForObstacles(directionToTarget, effectiveMaxDistance);
+        
+        if (Mathf.Abs(desiredDistance - effectiveMaxDistance) < 0.01f && currentDistance < effectiveMaxDistance - 0.1f)
         {
-            // Препятствий нет, но камера слишком близко - плавно отдаляем
-            // Это исправляет проблему, когда камера остается близко после телепортации
+            // Препятствий нет, но камера слишком близко — плавно отдаляем
         }
         
-        // Плавно изменяем текущее расстояние с помощью SmoothDamp
         currentDistance = Mathf.SmoothDamp(currentDistance, desiredDistance, ref distanceVelocity, smoothTime);
-        
-        // Ограничиваем расстояние минимальным и максимальным значениями
-        currentDistance = Mathf.Clamp(currentDistance, minDistance, defaultDistance);
+        currentDistance = Mathf.Clamp(currentDistance, minDistance, effectiveMaxDistance);
         
         // Вычисляем новую позицию камеры, сохраняя направление обзора
         // Используем lastValidDirection для сохранения угла обзора
@@ -243,29 +235,20 @@ public class CameraCollisionHandler : MonoBehaviour
             return minDistance;
         }
         
-        // ВАЖНО: Если камера находится на стандартном расстоянии или дальше, сначала проверяем,
-        // есть ли препятствия на пути к стандартному расстоянию. Если препятствий нет,
-        // возвращаем стандартное расстояние без дополнительных проверок.
-        // Это предотвращает ложные срабатывания после телепортации.
-        if (distanceToTarget >= defaultDistance - 0.1f)
+        if (distanceToTarget >= maxDistance - 0.1f)
         {
-            // Камера уже на стандартном расстоянии или дальше - проверяем препятствия только на пути к стандартному расстоянию
-            // Вычисляем направление от цели к камере (обратное к directionToTarget)
             Vector3 directionFromTarget = -directionToTarget;
-            
-            // Выполняем быструю проверку: есть ли препятствия между целью и стандартным расстоянием
             RaycastHit quickCheck;
             if (!Physics.SphereCast(
                 target.position,
                 collisionRadius,
                 directionFromTarget,
                 out quickCheck,
-                defaultDistance,
+                maxDistance,
                 obstacleMask,
                 QueryTriggerInteraction.Ignore))
             {
-                // Препятствий нет по SphereCast — дополнительно проверяем тонким лучом (ступеньки, тонкие меши)
-                return GetRaycastSafeDistanceFromTarget(defaultDistance);
+                return GetRaycastSafeDistanceFromTarget(maxDistance);
             }
         }
         
@@ -429,8 +412,7 @@ public class CameraCollisionHandler : MonoBehaviour
             return GetRaycastSafeDistanceFromTarget(safeDistance);
         }
         
-        // Препятствий нет по SphereCast — проверяем тонким лучом (меш ступенек и т.п.)
-        return GetRaycastSafeDistanceFromTarget(defaultDistance);
+        return GetRaycastSafeDistanceFromTarget(maxDistance);
     }
     
     /// <summary>

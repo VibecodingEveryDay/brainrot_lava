@@ -57,6 +57,11 @@ namespace YG
         /// Список ID разблокированных лестниц (1, 2 и т.д.)
         /// </summary>
         public List<int> UnlockedLadders = new List<int>();
+        
+        /// <summary>
+        /// Список ID скрытых стен (1, 2, 3 и т.д.)
+        /// </summary>
+        public List<int> HiddenWalls = new List<int>();
     }
 }
 

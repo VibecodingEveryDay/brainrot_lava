@@ -57,7 +57,7 @@ public class MusicManager : MonoBehaviour
     
     private void Start()
     {
-        // Вне ZoneCollider — lobby, в ZoneCollider — fight (переключает TowerZoneTrigger)
+        // Вне зоны — lobby, в зоне StartFinish — fight (переключает StartFinishZone)
         PlayLobbyMusic();
         StartCoroutine(PreloadFightMusicCoroutine());
     }
@@ -79,7 +79,7 @@ public class MusicManager : MonoBehaviour
     }
     
     /// <summary>
-    /// Вызывается TowerZoneTrigger: игрок вошёл (true) или вышел (false) из зоны боя.
+    /// Вызывается StartFinishZone: игрок вошёл (true) или вышел (false) из зоны боя.
     /// Переключение отложено на следующий кадр, чтобы не вызывать просадку FPS в кадр входа в триггер.
     /// </summary>
     public void SetPlayerInFightZone(bool inZone)

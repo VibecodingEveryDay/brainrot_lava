@@ -36,20 +36,17 @@ public class ThirdPersonController : MonoBehaviour
     [Tooltip("Скорость воспроизведения анимации бега (1 = нормальная, 2 = в 2 раза быстрее)")]
     [SerializeField] private float runAnimationSpeed = 1f;
     
-    [Header("Ground Check")]
-    [SerializeField] private float groundCheckDistance = 0.2f;
-    [Tooltip("Минимальный Y компонент нормали поверхности (0..1). Ниже — считаем стеной. 0.35 ≈ 70° от горизонтали (ступеньки проходят).")]
+    [Header("Ground Check (оптимизировано для ступенек и прыжков)")]
+    [Tooltip("Длина проверки вниз от ног (лучи + SphereCast).")]
+    [SerializeField] private float groundCheckLength = 0.7f;
+    [Tooltip("Минимальный normal.y поверхности, чтобы считать её полом (0.35 ≈ ступеньки).")]
     [SerializeField] private float minGroundNormalY = 0.35f;
-    [Tooltip("Длина луча вниз для проверки земли (от ног персонажа).")]
-    [SerializeField] private float groundCheckRayLength = 0.5f;
-    [Tooltip("Дополнительная длина луча при падении/спуске (velocity.y <= 0), чтобы раньше засечь землю после прыжка со ступенек или при спуске вниз.")]
-    [SerializeField] private float groundCheckRayLengthWhenFalling = 0.4f;
-    [Tooltip("Смещение дополнительных лучей от центра (по горизонтали). Несколько лучей под капсулой надёжнее попадают в меш ступенек (stairs).")]
-    [SerializeField] private float groundCheckRayRadius = 0.25f;
-    [Tooltip("Буфер времени (сек): считаем на земле ещё столько после потери контакта. Увеличено для ступенек.")]
-    [SerializeField] private float groundedBufferTime = 0.5f;
-    [Tooltip("Кадров без контакта с землёй перед переходом в «полёт» (гистерезис). Больше — меньше переключений на ступеньках.")]
-    [SerializeField] private int groundedFalseFramesRequired = 8;
+    [Tooltip("Радиус SphereCast и смещение дополнительных лучей под капсулой.")]
+    [SerializeField] private float groundCheckRadius = 0.2f;
+    [Tooltip("Буфер времени (сек): после потери контакта ещё считаем на земле (гистерезис для ступенек).")]
+    [SerializeField] private float groundedBufferTime = 0.25f;
+    [Tooltip("Сколько кадров подряд без контакта — тогда переходим в «полёт».")]
+    [SerializeField] private int groundedFramesRequired = 4;
     
     [Header("Jump Rotation")]
     [SerializeField] private float jumpRotationAngle = 10f; // Угол поворота модели при прыжке
@@ -263,10 +260,11 @@ public class ThirdPersonController : MonoBehaviour
             CheckGameReady();
         }
         
-        HandleGroundCheck();
-        HandleJump();
+        // Сначала применяем движение, затем проверяем землю — так isGrounded ставится в тот же кадр, что и приземление (не с задержкой в кадр).
         ApplyGravity();
         HandleMovement();
+        HandleGroundCheck();
+        HandleJump();
         UpdateAnimator();
         
     }
@@ -279,52 +277,43 @@ public class ThirdPersonController : MonoBehaviour
     
     private void HandleGroundCheck()
     {
-        // Несколько лучей вниз под капсулой (центр + 4 по окружности), чтобы надёжно попадать в меш ступенек (stairs).
-        // Один луч часто попадает в вертикальную грань ступеньки или промахивается при беге вверх/вниз.
-        Vector3 capsuleBottom = transform.position + characterController.center + Vector3.down * (characterController.height * 0.5f);
-        float extraLength = (velocity.y <= 0f) ? groundCheckRayLengthWhenFalling : 0f;
-        float rayLength = groundCheckDistance + groundCheckRayLength + extraLength;
-        bool hitValidGround = false;
+        Vector3 bottom = transform.position + characterController.center + Vector3.down * (characterController.height * 0.5f);
+        float len = groundCheckLength;
+        int layerMask = ~0;
+        var query = QueryTriggerInteraction.Ignore;
         
-        Vector3 forward = transform.forward;
-        forward.y = 0f;
-        if (forward.sqrMagnitude < 0.01f) forward = Vector3.forward;
-        forward.Normalize();
-        Vector3 right = transform.right;
-        right.y = 0f;
-        if (right.sqrMagnitude < 0.01f) right = Vector3.right;
-        right.Normalize();
+        bool contact = false;
         
-        Vector3[] rayOrigins = new Vector3[]
+        if (characterController.isGrounded && velocity.y <= 2f)
+            contact = true;
+        
+        if (!contact && groundCheckRadius > 0.001f && Physics.SphereCast(bottom, groundCheckRadius, Vector3.down, out RaycastHit sh, len, layerMask, query))
         {
-            capsuleBottom,
-            capsuleBottom + forward * groundCheckRayRadius,
-            capsuleBottom - forward * groundCheckRayRadius,
-            capsuleBottom + right * groundCheckRayRadius,
-            capsuleBottom - right * groundCheckRayRadius
-        };
+            if (sh.collider != null && sh.collider.gameObject != gameObject && !sh.collider.isTrigger && sh.normal.y >= minGroundNormalY)
+                contact = true;
+        }
         
-        for (int i = 0; i < rayOrigins.Length && !hitValidGround; i++)
+        if (!contact)
         {
-            if (Physics.Raycast(rayOrigins[i], Vector3.down, out RaycastHit hit, rayLength, ~0, QueryTriggerInteraction.Ignore))
+            Vector3 fwd = transform.forward; fwd.y = 0f; if (fwd.sqrMagnitude < 0.01f) fwd = Vector3.forward; fwd.Normalize();
+            Vector3 rgt = transform.right;   rgt.y = 0f; if (rgt.sqrMagnitude < 0.01f) rgt = Vector3.right;   rgt.Normalize();
+            Vector3[] origins = { bottom, bottom + fwd * groundCheckRadius, bottom - fwd * groundCheckRadius, bottom + rgt * groundCheckRadius, bottom - rgt * groundCheckRadius };
+            for (int i = 0; i < origins.Length; i++)
             {
-                if (hit.collider != null && hit.collider.gameObject != gameObject && !hit.collider.isTrigger)
+                if (Physics.Raycast(origins[i], Vector3.down, out RaycastHit hit, len, layerMask, query))
                 {
-                    if (hit.normal.y >= minGroundNormalY)
+                    if (hit.collider != null && hit.collider.gameObject != gameObject && !hit.collider.isTrigger && hit.normal.y >= minGroundNormalY)
                     {
-                        hitValidGround = true;
+                        contact = true;
                         break;
                     }
                 }
             }
         }
         
-        // CharacterController на ступеньках часто даёт isGrounded = true; доверяем ему при несильном движении вверх (шаг на следующую ступеньку).
-        bool ccSaysGrounded = characterController.isGrounded && velocity.y <= 0.5f;
-        isActuallyGrounded = hitValidGround || ccSaysGrounded;
+        isActuallyGrounded = contact;
         
-        // Обновляем время последнего контакта с землёй
-        if (isActuallyGrounded)
+        if (contact)
         {
             lastGroundedTime = Time.time;
             groundedFalseFrameCount = 0;
@@ -334,28 +323,16 @@ public class ThirdPersonController : MonoBehaviour
             if (velocity.y <= 0.1f)
                 groundedFalseFrameCount++;
             else
-                groundedFalseFrameCount = groundedFalseFramesRequired;
+                groundedFalseFrameCount = groundedFramesRequired;
         }
         
-        // isGrounded = true если реально на земле ИЛИ был на земле недавно (буфер)
-        // Исключение: если прыгаем вверх (velocity.y > 0) — не применяем буфер
         if (isActuallyGrounded)
-        {
             isGrounded = true;
-        }
-        else if (velocity.y > 0.1f)
-        {
+        else if (velocity.y > 0.2f)
             isGrounded = false;
-        }
         else
-        {
-            bool withinBuffer = (Time.time - lastGroundedTime) < groundedBufferTime;
-            bool failedEnoughFrames = groundedFalseFrameCount >= groundedFalseFramesRequired;
-            isGrounded = withinBuffer || !failedEnoughFrames;
-        }
+            isGrounded = (Time.time - lastGroundedTime) < groundedBufferTime || groundedFalseFrameCount < groundedFramesRequired;
         
-        // На лестнице всегда считаем isGrounded = true и обновляем буфер «последнего контакта с землёй»,
-        // чтобы после прыжка/схода с лестницы не уходить в fly: даём время на приземление.
         if (isOnLadder)
         {
             isGrounded = true;
@@ -363,11 +340,9 @@ public class ThirdPersonController : MonoBehaviour
             groundedFalseFrameCount = 0;
         }
         
-        // Сброс вертикальной скорости при приземлении
         if (isGrounded && velocity.y < 0)
         {
-            velocity.y = -2f; // Небольшая отрицательная скорость для удержания на земле
-            // Сбрасываем флаг прыжка при приземлении
+            velocity.y = -2f;
             isJumping = false;
         }
     }

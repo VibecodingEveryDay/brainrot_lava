@@ -1,0 +1,28 @@
+newmtl Devxero15Mtl
+Material Color
+Ka 1 1 1
+Kd 1 1 1
+Ks 0.4 0.4 0.4 
+
+d 1
+
+Ns 9
+
+map_Ka Devxero15Tex.png
+map_Kd Devxero15Tex.png
+map_d Devxero15Tex.png
+
+newmtl Devxero1Mtl
+Material Color
+Ka 1 1 1
+Kd 1 1 1
+Ks 0.4 0.4 0.4 
+
+d 1
+
+Ns 9
+
+map_Ka Devxero1Tex.png
+map_Kd Devxero1Tex.png
+map_d Devxero1Tex.png
+

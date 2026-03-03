@@ -265,7 +265,7 @@ public class ThirdPersonCamera : MonoBehaviour
     }
     
     /// <summary>
-    /// Обновляет дистанцию камеры в зависимости от состояния игрока (движение/прыжок/idle)
+    /// Обновляет дистанцию камеры в зависимости от состояния игрока (движение/прыжок/idle) и от открытых модальных окон.
     /// </summary>
     private void UpdateCameraDistance()
     {
@@ -282,6 +282,10 @@ public class ThirdPersonCamera : MonoBehaviour
                 targetDistance = distanceWhenMoving;
             }
         }
+        
+        // При открытом модальном окне отдаляем камеру на 25%
+        if (ModalOverlayManager.IsAnyModalOpen)
+            targetDistance *= 1.25f;
         
         // Плавно интерполируем к целевой дистанции
         currentDistance = Mathf.Lerp(currentDistance, targetDistance, distanceTransitionSpeed * Time.deltaTime);
