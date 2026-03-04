@@ -16,7 +16,7 @@
     "EarnPanelBalances": [
         {
             "panelID": 4,
-            "accumulatedBalance": 226490.0
+            "accumulatedBalance": 322190.0
         }
     ],
     "AttackPowerLevel": 0,
@@ -31,5 +31,5 @@
         false,
         false
     ],
-    "idSave": 27226
+    "idSave": 27232
 }

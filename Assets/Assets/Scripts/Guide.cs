@@ -54,6 +54,10 @@ public class Guide : MonoBehaviour
     private PlayerCarryController playerCarryController;
     private bool forceUpdateTarget = false; // Флаг для принудительного обновления цели
     private float updateTimer = 0f;
+    private BrainrotObject[] _cachedBrainrots;
+    private PlacementPanel[] _cachedPanels;
+    private float _guideCacheTime = -999f;
+    private const float GUIDE_CACHE_LIFETIME = 1.5f;
     
     void Start()
     {
@@ -361,12 +365,23 @@ public class Guide : MonoBehaviour
             currentEndPoint = null;
     }
     
+    void RefreshGuideCacheIfNeeded()
+    {
+        if (Time.time - _guideCacheTime >= GUIDE_CACHE_LIFETIME)
+        {
+            _cachedBrainrots = FindObjectsByType<BrainrotObject>(FindObjectsSortMode.None);
+            _cachedPanels = FindObjectsByType<PlacementPanel>(FindObjectsSortMode.None);
+            _guideCacheTime = Time.time;
+        }
+    }
+
     Transform FindNearestBrainrot()
     {
-        BrainrotObject[] allBrainrots = FindObjectsByType<BrainrotObject>(FindObjectsSortMode.None);
+        RefreshGuideCacheIfNeeded();
+        BrainrotObject[] allBrainrots = _cachedBrainrots;
         if (allBrainrots == null || allBrainrots.Length == 0)
             return null;
-        
+
         Transform playerTransform = GetPlayerTransform();
         if (playerTransform == null)
             return null;
@@ -398,9 +413,8 @@ public class Guide : MonoBehaviour
     
     PlacementPanel FindNearestEmptyPlacement()
     {
-        // Находим все панели размещения в сцене
-        PlacementPanel[] allPanels = FindObjectsByType<PlacementPanel>(FindObjectsSortMode.None);
-        
+        RefreshGuideCacheIfNeeded();
+        PlacementPanel[] allPanels = _cachedPanels;
         if (allPanels == null || allPanels.Length == 0)
         {
             return null;
@@ -431,7 +445,8 @@ public class Guide : MonoBehaviour
     /// <summary>Ближайшая панель размещения (пустая или занятая).</summary>
     PlacementPanel FindNearestPlacement()
     {
-        PlacementPanel[] allPanels = FindObjectsByType<PlacementPanel>(FindObjectsSortMode.None);
+        RefreshGuideCacheIfNeeded();
+        PlacementPanel[] allPanels = _cachedPanels;
         if (allPanels == null || allPanels.Length == 0)
             return null;
         

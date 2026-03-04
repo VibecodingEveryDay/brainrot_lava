@@ -27,6 +27,7 @@ public class InteractionUIHandler : MonoBehaviour, IPointerDownHandler, IPointer
     private bool interactionCompleted = false;
     private float lastPointerDownTime = -1f; // Время последнего вызова OnPointerDown
     private const float POINTER_DOWN_COOLDOWN = 0.1f; // Защита от двойного вызова (100ms)
+    private Camera _cachedMainCamera;
     
     private void Awake()
     {
@@ -305,12 +306,13 @@ public class InteractionUIHandler : MonoBehaviour, IPointerDownHandler, IPointer
         }
         
         // Также проверяем через Physics Raycast для World Space Canvas
-        Camera mainCamera = Camera.main;
-        if (mainCamera == null)
+        if (_cachedMainCamera == null)
         {
-            mainCamera = FindFirstObjectByType<Camera>();
+            _cachedMainCamera = Camera.main;
+            if (_cachedMainCamera == null)
+                _cachedMainCamera = FindFirstObjectByType<Camera>();
         }
-        
+        Camera mainCamera = _cachedMainCamera;
         if (mainCamera != null)
         {
             Ray ray = mainCamera.ScreenPointToRay(pointerEventData.position);
@@ -715,12 +717,13 @@ public class InteractionUIHandler : MonoBehaviour, IPointerDownHandler, IPointer
             canvas.overrideSorting = true;
             
             // Для World Space Canvas также нужен PhysicsRaycaster на камере
-            Camera mainCamera = Camera.main;
-            if (mainCamera == null)
+            if (_cachedMainCamera == null)
             {
-                mainCamera = FindFirstObjectByType<Camera>();
+                _cachedMainCamera = Camera.main;
+                if (_cachedMainCamera == null)
+                    _cachedMainCamera = FindFirstObjectByType<Camera>();
             }
-            
+            Camera mainCamera = _cachedMainCamera;
             if (mainCamera != null && canvas.renderMode == RenderMode.WorldSpace)
             {
                 UnityEngine.EventSystems.PhysicsRaycaster physicsRaycaster = mainCamera.GetComponent<UnityEngine.EventSystems.PhysicsRaycaster>();

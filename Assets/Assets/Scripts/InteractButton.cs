@@ -20,7 +20,7 @@ public class InteractButton : MonoBehaviour, IPointerDownHandler, IPointerUpHand
     
     [Header("Settings")]
     [Tooltip("Частота поиска ближайшего объекта (в кадрах). Больше значение = меньше поисков")]
-    [SerializeField] private int searchFrequency = 10;
+    [SerializeField] private int searchFrequency = 25;
     
     
     // Компоненты
@@ -35,6 +35,9 @@ public class InteractButton : MonoBehaviour, IPointerDownHandler, IPointerUpHand
     
     // Кэш для оптимизации
     private int searchFrameCount = 0;
+    private InteractableObject[] _cachedInteractables;
+    private float _interactablesCacheTime = -999f;
+    private const float INTERACTABLES_CACHE_LIFETIME = 1.5f;
     private string defaultText = "ВЗЯТЬ"; // Будет обновлено через локализацию
     private string putText = "ПОСТАВИТЬ"; // Будет обновлено через локализацию
     private string currentLanguage = "ru"; // Текущий язык для отслеживания изменений
@@ -309,9 +312,14 @@ public class InteractButton : MonoBehaviour, IPointerDownHandler, IPointerUpHand
         else
         {
             // ПРИОРИТЕТ 2: Ищем переносимый BrainrotObject (для "Поставить")
-            // Находим все InteractableObject в сцене
-            InteractableObject[] allObjects = FindObjectsByType<InteractableObject>(FindObjectsSortMode.None);
-            
+            if (Time.time - _interactablesCacheTime >= INTERACTABLES_CACHE_LIFETIME)
+            {
+                _cachedInteractables = FindObjectsByType<InteractableObject>(FindObjectsSortMode.None);
+                _interactablesCacheTime = Time.time;
+            }
+            InteractableObject[] allObjects = _cachedInteractables;
+            if (allObjects == null) allObjects = System.Array.Empty<InteractableObject>();
+
             foreach (InteractableObject obj in allObjects)
             {
                 if (obj == null || !obj.gameObject.activeInHierarchy)

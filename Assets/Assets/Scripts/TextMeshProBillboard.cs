@@ -34,6 +34,7 @@ public class TextMeshProBillboard : MonoBehaviour
     private Transform targetTransform;
     private Transform myTransform;
     private int frameCount = 0;
+    private static Camera _cachedCamera;
     
     private void Awake()
     {
@@ -93,20 +94,18 @@ public class TextMeshProBillboard : MonoBehaviour
             }
             else
             {
-                Camera mainCam = Camera.main;
-                if (mainCam == null)
+                if (_cachedCamera == null)
                 {
-                    mainCam = FindFirstObjectByType<Camera>();
+                    _cachedCamera = Camera.main;
+                    if (_cachedCamera == null)
+                        _cachedCamera = FindFirstObjectByType<Camera>();
                 }
-                
-                if (mainCam != null)
-                {
-                    targetTransform = mainCam.transform;
-                }
+                if (_cachedCamera != null)
+                    targetTransform = _cachedCamera.transform;
             }
         }
     }
-    
+
     private void LateUpdate()
     {
         // Оптимизация: обновляем не каждый кадр

@@ -37,9 +37,10 @@ public class BrainrotSellPlane : MonoBehaviour
     // Список брейнротов, которые находятся в зоне продажи
     private System.Collections.Generic.List<BrainrotObject> brainrotsInZone = new System.Collections.Generic.List<BrainrotObject>();
     
-    // Интервал проверки (в секундах) - проверяем раз в кадр, но можно оптимизировать
-    private const float CHECK_INTERVAL = 0.1f;
+    private const float CHECK_INTERVAL = 0.2f;
+    private const float FULL_SCAN_INTERVAL = 3f; // Fallback: полный скан сцены не чаще раза в 3 сек
     private float lastCheckTime = 0f;
+    private float lastFullScanTime = -999f;
     
     private void Awake()
     {
@@ -139,22 +140,20 @@ public class BrainrotSellPlane : MonoBehaviour
             }
         }
         
-        // 2) Дополнительно: ищем все размещённые брейнроты, чья позиция внутри границ плоскости
-        // (на случай если OnTriggerEnter не сработал — слои, kinematic Rigidbody и т.д.)
+        // 2) Fallback: полный скан сцены редко (раз в FULL_SCAN_INTERVAL), если триггер кого-то пропустил
         if (sellPlaneCollider == null || !sellPlaneCollider.enabled) return;
-        
+        if (Time.time - lastFullScanTime < FULL_SCAN_INTERVAL) return;
+        lastFullScanTime = Time.time;
+
         Bounds bounds = sellPlaneCollider.bounds;
         BrainrotObject[] allBrainrots = FindObjectsByType<BrainrotObject>(FindObjectsSortMode.None);
-        
-        foreach (BrainrotObject brainrot in allBrainrots)
+        for (int i = 0; i < allBrainrots.Length; i++)
         {
+            BrainrotObject brainrot = allBrainrots[i];
             if (brainrot == null || brainrot.gameObject == null) continue;
             if (!brainrot.IsPlaced() || brainrot.IsCarried()) continue;
-            if (!GetBrainrotBounds(brainrot, out Bounds brainrotBounds) || !bounds.Intersects(brainrotBounds)) continue;
-            // Уже в списке — обработаем в следующем цикле или уже обработан
             if (brainrotsInZone.Contains(brainrot)) continue;
-            
-            // В зоне продажи по пересечению bounds — продаём
+            if (!GetBrainrotBounds(brainrot, out Bounds brainrotBounds) || !bounds.Intersects(brainrotBounds)) continue;
             brainrotsInZone.Add(brainrot);
             SellBrainrot(brainrot);
         }

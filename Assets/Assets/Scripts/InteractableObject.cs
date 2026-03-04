@@ -67,13 +67,13 @@ public class InteractableObject : MonoBehaviour
     [SerializeField] private int uiUpdateFrequency = 3; // Обновлять каждые 3 кадра по умолчанию (оптимизация)
     
     [Tooltip("Частота проверки расстояния до игрока (в кадрах). Больше значение = меньше проверок")]
-    [SerializeField] private int distanceCheckFrequency = 2; // Проверять каждые 2 кадра по умолчанию (оптимизация)
+    [SerializeField] private int distanceCheckFrequency = 8; // Проверять каждые 8 кадров по умолчанию (оптимизация FPS)
     
     [Tooltip("Частота поиска игрока если он не найден (в секундах). Больше значение = меньше поисков")]
     [SerializeField] private float playerSearchInterval = 1f; // Искать раз в секунду
     
     [Tooltip("Частота обновления Billboard UI (в кадрах). Больше значение = меньше обновлений")]
-    [SerializeField] private int billboardUpdateFrequency = 2; // Обновлять каждые 2 кадра (оптимизация)
+    [SerializeField] private int billboardUpdateFrequency = 5; // Обновлять каждые 5 кадров (оптимизация FPS)
     
     // Приватные переменные
     protected Transform playerTransform; // protected для доступа из наследников
@@ -279,13 +279,17 @@ public class InteractableObject : MonoBehaviour
                 CreateUI();
             }
         }
-        
+
+        // Оптимизация FPS: не вызывать UpdateUI/HandleInput когда игрок далеко и UI нет
+        if (!isPlayerInRange && currentUIInstance == null)
+            return;
+
         // Обновляем UI (только если UI существует и активен)
         if (currentUIInstance != null && currentUIInstance.activeSelf)
         {
             UpdateUI();
         }
-        
+
         // Обрабатываем ввод
         HandleInput();
     }
