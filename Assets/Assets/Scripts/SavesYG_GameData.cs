@@ -62,6 +62,11 @@ namespace YG
         /// Список ID скрытых стен (1, 2, 3 и т.д.)
         /// </summary>
         public List<int> HiddenWalls = new List<int>();
+        
+        /// <summary>
+        /// Ключи NPC (NpcGuy), которых убрали после покупки стены (не показывать снова).
+        /// </summary>
+        public List<string> RemovedNpcGuyIds = new List<string>();
     }
 }
 

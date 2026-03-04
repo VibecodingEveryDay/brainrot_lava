@@ -17,6 +17,12 @@ public class Guide : MonoBehaviour
     [Tooltip("Transform кнопки спавна брейнрота (не используется для линии: линия ведёт только к брейнротам не в placement).")]
     [SerializeField] private Transform spawnBrainrotButtonTransform;
     
+    [Header("Guidance Dots")]
+    [Tooltip("Transform родителя объектов-точек (точки могут быть прямыми детьми или вложенными). Имена: N_M (N — номер плоскости, M — 1=начало плоскости, 2=конец). Линия строится через эти чекпоинты.")]
+    [SerializeField] private Transform guidanceDotsRoot;
+    [Tooltip("Если |Y игрока - Y цели| меньше этого значения, игнорируем GuidanceDots и ведём напрямую (2 точки). 0 = всегда через точки.")]
+    [SerializeField] private float guidanceDotsMaxYDifference = 50f;
+    
     [Header("Оптимизация")]
     [Tooltip("Интервал обновления цели (секунды). Больше = меньше нагрузка на CPU")]
     [SerializeField] private float updateInterval = 0.25f;
@@ -35,14 +41,27 @@ public class Guide : MonoBehaviour
     [SerializeField] private float waypointDistanceNear = 3f;
     
     
-    [Tooltip("Высота над траекторией для raycast вниз (поиск поверхности)")]
-    [SerializeField] private float raycastHeight = 20f;
+    [Tooltip("Высота над точкой траектории для raycast вниз (не слишком большая, чтобы не цеплять потолок)")]
+    [SerializeField] private float raycastHeight = 4f;
     
     [Tooltip("Максимальная дистанция raycast вниз")]
     [SerializeField] private float raycastMaxDistance = 50f;
     
     [Tooltip("Слой для raycast поверхности (-1 = всё)")]
     [SerializeField] private LayerMask surfaceLayerMask = -1;
+    
+    [Header("Ступеньки")]
+    [Tooltip("Порог по Y между точками, при котором считаем участок ступеньками")]
+    [SerializeField] private float stairsYThreshold = 0.08f;
+    
+    [Tooltip("Добавлять к Y точек на ступеньках, чтобы линия шла чуть выше ступенек")]
+    [SerializeField] private float groundStairsOffsetY = 0.15f;
+    
+    [Tooltip("Минимальный normal.y поверхности, чтобы считать её «ходовой» (верх ступеньки, не пол под ней)")]
+    [SerializeField] private float walkableNormalY = 0.5f;
+    
+    [Tooltip("Максимум метров вниз от луча: не брать поверхность глубже (чтобы не цеплять пол под лестницей)")]
+    [SerializeField] private float raycastMaxDrop = 8f;
     
     private GameObject lineInstance;
     private LineRenderer lineRenderer;
@@ -58,6 +77,15 @@ public class Guide : MonoBehaviour
     private PlacementPanel[] _cachedPanels;
     private float _guideCacheTime = -999f;
     private const float GUIDE_CACHE_LIFETIME = 1.5f;
+    
+    private struct GuidanceDotEntry
+    {
+        public int plane;
+        public int type; // 1 = начало плоскости, 2 = конец плоскости
+        public Transform transform;
+    }
+    private List<GuidanceDotEntry> _guidanceDotsCache = new List<GuidanceDotEntry>();
+    private bool _guidanceDotsCacheValid;
     
     void Start()
     {
@@ -150,10 +178,32 @@ public class Guide : MonoBehaviour
             {
                 Vector3 start = startTr.position;
                 Vector3 end = currentEndPoint.position;
-                bool directToPlacement = HasBrainrotInHands() && tempTargetObject != null && currentEndPoint == tempTargetObject.transform;
-                UpdateSurfaceWaypoints(start, end, directToPlacement ? 0 : (int?)null, directToPlacement);
+                UpdateSurfaceWaypoints(start, end);
             }
         }
+    }
+    
+    void RefreshGuidanceDotsCache()
+    {
+        _guidanceDotsCache.Clear();
+        _guidanceDotsCacheValid = false;
+        if (guidanceDotsRoot == null) return;
+        Transform[] all = guidanceDotsRoot.GetComponentsInChildren<Transform>(true);
+        for (int i = 0; i < all.Length; i++)
+        {
+            Transform t = all[i];
+            if (t == null || t == guidanceDotsRoot) continue;
+            string name = t.name;
+            string[] parts = name.Split('_');
+            if (parts.Length < 2) continue;
+            if (!int.TryParse(parts[0].Trim(), out int plane) || !int.TryParse(parts[1].Trim(), out int type)) continue;
+            if (type != 1 && type != 2) continue;
+            _guidanceDotsCache.Add(new GuidanceDotEntry { plane = plane, type = type, transform = t });
+        }
+        _guidanceDotsCache.Sort((a, b) => a.plane != b.plane ? a.plane.CompareTo(b.plane) : a.type.CompareTo(b.type));
+        _guidanceDotsCacheValid = true;
+        if (_guidanceDotsCache.Count > 0)
+            Debug.Log($"[Guide] GuidanceDots: загружено {_guidanceDotsCache.Count} точек (родитель: {guidanceDotsRoot.name})");
     }
     
     void CreateGuidanceLine()
@@ -229,90 +279,240 @@ public class Guide : MonoBehaviour
     }
     
     /// <summary>
-    /// Генерирует промежуточные точки по поверхности между start и end.
-    /// «Шагает» по земле: каждая точка ищется raycast'ом вниз с учётом предыдущей точки,
-    /// чтобы путь следовал рельефу и BoxCollider'ам земли, а не шёл по прямой через верх.
+    /// Строит путь через чекпоинты GuidanceDots: start → точки от плоскости старта до плоскости цели → end.
     /// </summary>
-    void UpdateSurfaceWaypoints(Vector3 start, Vector3 end, int? waypointCountOverride = null, bool directLine = false)
+    List<Vector3> BuildPathViaGuidanceDots(Vector3 start, Vector3 end)
+    {
+        if (!_guidanceDotsCacheValid || _guidanceDotsCache.Count == 0)
+            RefreshGuidanceDotsCache();
+        if (_guidanceDotsCache.Count == 0)
+            return null;
+        if (guidanceDotsMaxYDifference > 0f && Mathf.Abs(start.y - end.y) <= guidanceDotsMaxYDifference)
+        {
+            return new List<Vector3> { start, end };
+        }
+        int startPlane = -1, startType = -1, endPlane = -1, endType = -1;
+        float bestStartSq = float.MaxValue, bestEndSq = float.MaxValue;
+        float minDistDotToTargetSq = float.MaxValue;
+        for (int i = 0; i < _guidanceDotsCache.Count; i++)
+        {
+            var e = _guidanceDotsCache[i];
+            if (e.transform == null) continue;
+            Vector3 dotPos = e.transform.position;
+            float dStartSq = (dotPos - start).sqrMagnitude;
+            float dEndSq = (dotPos - end).sqrMagnitude;
+            if (dStartSq < bestStartSq) { bestStartSq = dStartSq; startPlane = e.plane; startType = e.type; }
+            if (dEndSq < bestEndSq) { bestEndSq = dEndSq; endPlane = e.plane; endType = e.type; }
+            if (dEndSq < minDistDotToTargetSq) minDistDotToTargetSq = dEndSq;
+        }
+        if (startPlane < 0 || endPlane < 0) return null;
+        float distPlayerToTargetSq = (end - start).sqrMagnitude;
+        if (distPlayerToTargetSq <= minDistDotToTargetSq)
+        {
+            var two = new List<Vector3> { start, end };
+            return two;
+        }
+        var seq = BuildOrderedSequence(startPlane, startType, endPlane, endType);
+        List<Vector3> positions = new List<Vector3>();
+        positions.Add(start);
+        foreach (var key in seq)
+        {
+            var e = FindDot(key.plane, key.type);
+            if (e.transform != null)
+                positions.Add(e.transform.position);
+        }
+        positions.Add(end);
+        return positions;
+    }
+    
+    /// <summary>
+    /// Цепочка: от ближайшей к игроку точки до ближайшей к цели.
+    /// Вниз (6→1): 6_2→6_1→5_2→5_1→…→1_2→1_1. Вверх (1→6): 1_2→2_1→2_2→…→6_1 (без 6_2 если цель у 6_1).
+    /// </summary>
+    List<(int plane, int type)> BuildOrderedSequence(int startPlane, int startType, int endPlane, int endType)
+    {
+        var list = new List<(int plane, int type)>();
+        if (startPlane == endPlane)
+        {
+            // Одна и та же плоскость:
+            // 1_1 -> 1_2  =>  [1_1, 1_2]
+            // 1_2 -> 1_1  =>  [1_2, 1_1]
+            // 1_1 -> 1_1  =>  [1_1]
+            // 1_2 -> 1_2  =>  [1_2]
+            if (startType == 1 && endType == 2)
+            {
+                list.Add((endPlane, 1));
+                list.Add((endPlane, 2));
+            }
+            else if (startType == 2 && endType == 1)
+            {
+                list.Add((endPlane, 2));
+                list.Add((endPlane, 1));
+            }
+            else if (startType == endType)
+            {
+                list.Add((endPlane, endType));
+            }
+            return list;
+        }
+        if (startPlane > endPlane)
+        {
+            if (startType == 2)
+                list.Add((startPlane, 2));
+            list.Add((startPlane, 1));
+            for (int p = startPlane - 1; p >= endPlane; p--)
+            {
+                list.Add((p, 2));
+                list.Add((p, 1));
+            }
+        }
+        else
+        {
+            list.Add((startPlane, 2));
+            for (int p = startPlane + 1; p <= endPlane - 1; p++)
+            {
+                list.Add((p, 1));
+                list.Add((p, 2));
+            }
+            list.Add((endPlane, 1));
+            if (endType == 2) list.Add((endPlane, 2));
+        }
+        return list;
+    }
+    
+    GuidanceDotEntry FindDot(int plane, int type)
+    {
+        for (int i = 0; i < _guidanceDotsCache.Count; i++)
+        {
+            var e = _guidanceDotsCache[i];
+            if (e.plane == plane && e.type == type) return e;
+        }
+        return default;
+    }
+    
+    /// <summary>
+    /// Строит точки по поверхности между start и end (переработка с нуля).
+    /// Цель выше: start → промежуточная (Y = end.y) → end (последний отрезок горизонтальный).
+    /// Цель ниже: start → промежуточная (end.x, start.y, end.z) → end (сначала плоскость, потом спуск).
+    /// </summary>
+    void UpdateSurfaceWaypoints(Vector3 start, Vector3 end)
     {
         if (lineRenderer == null)
             return;
         
-        int count;
-        if (waypointCountOverride.HasValue)
-            count = Mathf.Clamp(waypointCountOverride.Value, 0, surfaceWaypointCountMax);
-        else
+        float totalDist = Vector3.Distance(start, end);
+        if (totalDist < 0.001f)
         {
-            float distance = Vector3.Distance(start, end);
-            count = Mathf.RoundToInt(Mathf.Lerp(
-                surfaceWaypointCountMin,
-                surfaceWaypointCountMax,
-                Mathf.InverseLerp(waypointDistanceNear, waypointDistanceFar, distance)
-            ));
-            count = Mathf.Clamp(count, 0, surfaceWaypointCountMax);
-        }
-        
-        if (count <= 0 && !directLine)
-        {
-            ApplyLinePositions(start, end, null);
+            lineRenderer.positionCount = 2;
+            lineRenderer.SetPosition(0, start);
+            lineRenderer.SetPosition(1, end);
             return;
         }
         
-        if (directLine)
-            count = 1;
-        
-        if (waypointsContainer == null)
+        if (guidanceDotsRoot != null)
         {
-            waypointsContainer = new GameObject("Guide_Waypoints");
-            waypointsContainer.transform.SetParent(lineInstance != null ? lineInstance.transform : transform);
-        }
-        
-        while (waypointTransforms.Count > count)
-        {
-            int last = waypointTransforms.Count - 1;
-            if (waypointTransforms[last] != null) Destroy(waypointTransforms[last].gameObject);
-            waypointTransforms.RemoveAt(last);
-        }
-        while (waypointTransforms.Count < count)
-        {
-            var wp = new GameObject($"Guide_Waypoint_{waypointTransforms.Count + 1}");
-            wp.transform.SetParent(waypointsContainer.transform);
-            waypointTransforms.Add(wp.transform);
-        }
-        
-        Vector3 currentGround = GetSurfacePosition(new Vector3(start.x, start.y + raycastHeight, start.z), start.y);
-        float totalXZ = Vector2.Distance(new Vector2(start.x, start.z), new Vector2(end.x, end.z));
-        
-        if (totalXZ < 0.001f && !directLine)
-        {
-            ApplyLinePositions(start, end, null);
-            return;
-        }
-        
-        if (directLine)
-        {
-            waypointTransforms[0].position = Vector3.Lerp(start, end, 0.5f);
-        }
-        else
-        {
-            float heightCap = Mathf.Min(start.y, end.y);
-            for (int i = 1; i <= count; i++)
+            List<Vector3> path = BuildPathViaGuidanceDots(start, end);
+            if (path != null && path.Count > 0)
             {
-                float t = (float)i / (count + 1);
-                Vector2 nextXZ = Vector2.Lerp(new Vector2(start.x, start.z), new Vector2(end.x, end.z), t);
-                float rayStartY = Mathf.Max(currentGround.y, heightCap) + raycastHeight;
-                Vector3 rayStart = new Vector3(nextXZ.x, rayStartY, nextXZ.y);
-                Vector3 surfacePos = GetSurfacePosition(rayStart, heightCap);
-                currentGround = surfacePos;
-                waypointTransforms[i - 1].position = surfacePos;
+                ApplyLinePositions(path);
+                return;
             }
         }
         
-        ApplyLinePositions(start, end, waypointTransforms);
+        List<Vector3> positions = new List<Vector3>();
+        positions.Add(start);
+        
+        const float ySameThreshold = 0.1f;
+        bool targetAbove = end.y > start.y + ySameThreshold;
+        bool targetBelow = end.y < start.y - ySameThreshold;
+        
+        if (targetAbove)
+        {
+            Vector3 intermediate = FindIntermediateAtTargetHeight(start, end);
+            positions.Add(intermediate);
+            positions.Add(end);
+        }
+        else if (targetBelow)
+        {
+            Vector3 intermediate = GetSurfaceAbove(end, start.y);
+            positions.Add(intermediate);
+            positions.Add(end);
+        }
+        else
+        {
+            positions.Add(end);
+        }
+        
+        ApplyStairsOffset(positions);
+        ApplyLinePositions(positions);
     }
     
     /// <summary>
-    /// Записывает позиции [start, ...waypoints..., end] в LineRenderer (TexturePanLine).
+    /// Точка над целью на высоте baseY, спроецированная на поверхность (край обрыва/лестницы).
+    /// </summary>
+    Vector3 GetSurfaceAbove(Vector3 end, float baseY)
+    {
+        Vector3 above = new Vector3(end.x, baseY, end.z);
+        Vector3 rayOrigin = above + Vector3.up * raycastHeight;
+        Vector3 surface = GetSurfacePosition(rayOrigin, null);
+        return new Vector3(surface.x, surface.y, surface.z);
+    }
+    
+    /// <summary>
+    /// Ищет вдоль отрезка start→end точку «вершины подъёма»: первый локальный максимум поверхности (конец лестницы).
+    /// После подъёма при первом спаде Y возвращаем вершину + offset, чтобы линия не пронзала ступени и не уходила на платформу.
+    /// </summary>
+    Vector3 FindIntermediateAtTargetHeight(Vector3 start, Vector3 end)
+    {
+        const int steps = 48;
+        const float dropThreshold = 0.06f; // спад выше порога = прошли вершину
+        const float maxAboveTarget = 0.1f;
+        float bestSurfaceY = float.MinValue;
+        Vector3 bestSurface = new Vector3(end.x, end.y, end.z);
+        float prevSurfaceY = float.MinValue;
+        for (int i = 1; i <= steps; i++)
+        {
+            float t = (float)i / (steps + 1);
+            Vector3 onSegment = Vector3.Lerp(start, end, t);
+            Vector3 rayOrigin = onSegment + Vector3.up * raycastHeight;
+            Vector3 surface = GetSurfacePosition(rayOrigin, null);
+            float sy = surface.y;
+            // Не учитываем поверхность выше цели (платформа за лестницей)
+            if (sy > end.y + maxAboveTarget)
+                continue;
+            if (sy > bestSurfaceY)
+            {
+                bestSurfaceY = sy;
+                bestSurface = surface;
+            }
+            // Первый спад после подъёма — мы прошли вершину лестницы
+            if (prevSurfaceY > float.MinValue && bestSurfaceY > start.y + dropThreshold && sy < bestSurfaceY - dropThreshold)
+            {
+                Vector3 top = bestSurface;
+                top.y += groundStairsOffsetY;
+                return top;
+            }
+            prevSurfaceY = sy;
+        }
+        // Не нашли спад — возвращаем лучшую точку не выше цели, с offset
+        Vector3 fallback = bestSurface;
+        fallback.y += groundStairsOffsetY;
+        return fallback;
+    }
+    
+    /// <summary>
+    /// Записывает список позиций в LineRenderer.
+    /// </summary>
+    void ApplyLinePositions(List<Vector3> positions)
+    {
+        if (lineRenderer == null || positions == null || positions.Count == 0) return;
+        lineRenderer.positionCount = positions.Count;
+        for (int i = 0; i < positions.Count; i++)
+            lineRenderer.SetPosition(i, positions[i]);
+    }
+    
+    /// <summary>
+    /// Записывает позиции [start, ...waypoints..., end] в LineRenderer (TexturePanLine). Оставлено для совместимости.
     /// </summary>
     void ApplyLinePositions(Vector3 start, Vector3 end, List<Transform> waypoints)
     {
@@ -327,32 +527,136 @@ public class Guide : MonoBehaviour
     }
     
     /// <summary>
-    /// Raycast вниз для поиска поверхности. preferMaxY — искать пол у этого уровня (для домов: не цеплять потолок).
+    /// Raycast вниз для поиска поверхности.
+    /// Без preferMaxY: берём самую НИЗКУЮ ходовую поверхность (пол/ступеньки), чтобы не цеплять потолок и не строить треугольник через верх.
+    /// С preferMaxY (под потолком): пол не выше лимита.
     /// </summary>
     Vector3 GetSurfacePosition(Vector3 fromAbove, float? preferMaxY = null)
     {
-        RaycastHit[] hits = Physics.RaycastAll(fromAbove, Vector3.down, raycastMaxDistance, surfaceLayerMask);
+        RaycastHit[] rawHits = Physics.RaycastAll(fromAbove, Vector3.down, raycastMaxDistance, surfaceLayerMask);
+        var filtered = new List<RaycastHit>();
+        foreach (var h in rawHits)
+        {
+            if (h.collider != null && !h.collider.gameObject.CompareTag("Ball"))
+                filtered.Add(h);
+        }
+        RaycastHit[] hits = filtered.ToArray();
         if (hits.Length == 0)
             return new Vector3(fromAbove.x, fromAbove.y - raycastHeight, fromAbove.z);
         if (!preferMaxY.HasValue)
         {
+            float rayOriginY = fromAbove.y;
+            float minAllowedY = rayOriginY - raycastMaxDrop;
+            // Ходовая = нормаль вверх. Берём самую ВЫСОКУЮ ходовую под лучом в пределах raycastMaxDrop (верх ступеньки, не пол под лестницей)
+            RaycastHit? walkable = null;
+            float bestY = float.MinValue;
+            foreach (var h in hits)
+            {
+                if (h.normal.y >= walkableNormalY && h.point.y < rayOriginY - 0.05f && h.point.y >= minAllowedY && h.point.y > bestY)
+                {
+                    bestY = h.point.y;
+                    walkable = h;
+                }
+            }
+            if (walkable.HasValue)
+                return walkable.Value.point;
+            // Без ограничения по глубине — самая высокая ходовая под лучом
+            walkable = null;
+            bestY = float.MinValue;
+            foreach (var h in hits)
+            {
+                if (h.normal.y >= walkableNormalY && h.point.y < rayOriginY - 0.05f && h.point.y > bestY)
+                {
+                    bestY = h.point.y;
+                    walkable = h;
+                }
+            }
+            if (walkable.HasValue)
+                return walkable.Value.point;
+            // Fallback: самый высокий hit в пределах maxDrop (не уходить в подпол)
+            RaycastHit? fallback = null;
+            bestY = float.MinValue;
+            foreach (var h in hits)
+            {
+                if (h.point.y >= minAllowedY && h.point.y > bestY)
+                {
+                    bestY = h.point.y;
+                    fallback = h;
+                }
+            }
+            if (fallback.HasValue)
+                return fallback.Value.point;
             System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
             return hits[0].point;
         }
-        // Внутри меша (дом): берём пол на уровне игрока, а не потолок
-        float bestY = float.MinValue;
+        // Под потолком (дом): берём пол не выше preferMaxY + 0.5f, из них — самый высокий (пол под ногами)
+        float capBestY = float.MinValue;
         RaycastHit? best = null;
         foreach (var h in hits)
         {
-            if (h.point.y <= preferMaxY.Value + 0.5f && h.point.y > bestY)
+            if (h.point.y <= preferMaxY.Value + 0.5f && h.point.y > capBestY && h.normal.y >= walkableNormalY)
             {
-                bestY = h.point.y;
+                capBestY = h.point.y;
+                best = h;
+            }
+        }
+        if (best.HasValue) return best.Value.point;
+        // Fallback без требования по normal
+        foreach (var h in hits)
+        {
+            if (h.point.y <= preferMaxY.Value + 0.5f && h.point.y > capBestY)
+            {
+                capBestY = h.point.y;
                 best = h;
             }
         }
         if (best.HasValue) return best.Value.point;
         System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
         return hits[0].point;
+    }
+    
+    /// <summary>
+    /// Определяет участки по ступенькам (когда Y соседних точек заметно отличается) и добавляет groundStairsOffsetY к этим точкам.
+    /// </summary>
+    void ApplyStairsOffset(Vector3 start, Vector3 end, List<Transform> waypoints)
+    {
+        if (waypoints == null || waypoints.Count == 0 || groundStairsOffsetY <= 0f) return;
+
+        for (int i = 0; i < waypoints.Count; i++)
+        {
+            if (waypoints[i] == null) continue;
+            float y = waypoints[i].position.y;
+            float prevY = i == 0 ? start.y : waypoints[i - 1].position.y;
+            float nextY = i == waypoints.Count - 1 ? end.y : waypoints[i + 1].position.y;
+            bool onStairs = Mathf.Abs(y - prevY) > stairsYThreshold || Mathf.Abs(y - nextY) > stairsYThreshold;
+            if (onStairs)
+            {
+                Vector3 p = waypoints[i].position;
+                p.y += groundStairsOffsetY;
+                waypoints[i].position = p;
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Смещение по Y для точек на ступеньках (in-place по списку позиций).
+    /// </summary>
+    void ApplyStairsOffset(List<Vector3> positions)
+    {
+        if (positions == null || positions.Count < 3 || groundStairsOffsetY <= 0f) return;
+        for (int i = 1; i < positions.Count - 1; i++)
+        {
+            float y = positions[i].y;
+            float prevY = positions[i - 1].y;
+            float nextY = positions[i + 1].y;
+            bool onStairs = Mathf.Abs(y - prevY) > stairsYThreshold || Mathf.Abs(y - nextY) > stairsYThreshold;
+            if (onStairs)
+            {
+                Vector3 p = positions[i];
+                p.y += groundStairsOffsetY;
+                positions[i] = p;
+            }
+        }
     }
     
     void SetLineEnabled(bool enabled)
@@ -375,6 +679,27 @@ public class Guide : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Сбросить кэш брейнротов (вызывать после респавна, чтобы не обращаться к уничтоженным объектам).
+    /// </summary>
+    public void InvalidateBrainrotCache()
+    {
+        _guideCacheTime = -999f;
+    }
+
+    /// <summary>
+    /// Сбросить кэш у всех Guide на сцене (вызвать после респавна брейнротов).
+    /// </summary>
+    public static void InvalidateAllGuidesCache()
+    {
+        Guide[] guides = FindObjectsByType<Guide>(FindObjectsSortMode.None);
+        for (int i = 0; i < guides.Length; i++)
+        {
+            if (guides[i] != null)
+                guides[i].InvalidateBrainrotCache();
+        }
+    }
+
     Transform FindNearestBrainrot()
     {
         RefreshGuideCacheIfNeeded();
@@ -390,6 +715,8 @@ public class Guide : MonoBehaviour
         BrainrotObject closest = null;
         foreach (BrainrotObject brainrot in allBrainrots)
         {
+            if (brainrot == null)
+                continue;
             if (brainrot.IsCarried() || brainrot.IsPlaced())
                 continue;
             float distance = Vector3.Distance(playerTransform.position, brainrot.transform.position);

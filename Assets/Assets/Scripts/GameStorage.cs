@@ -877,6 +877,9 @@ public class GameStorage : MonoBehaviour
         // Очищаем список скрытых стен
         YG2.saves.HiddenWalls.Clear();
         
+        // Очищаем список убранных NPC (чтобы они снова показывались после очистки)
+        YG2.saves.RemovedNpcGuyIds.Clear();
+        
         // Сохраняем изменения
         YG2.SaveProgress();
         
@@ -1210,6 +1213,27 @@ public class GameStorage : MonoBehaviour
     public void ClearHiddenWalls()
     {
         YG2.saves.HiddenWalls.Clear();
+        Save();
+    }
+    
+    /// <summary>
+    /// Проверить, был ли NpcGuy убран (после покупки стены) и не должен показываться снова.
+    /// </summary>
+    public bool IsNpcGuyRemoved(string npcPersistId)
+    {
+        return npcPersistId != null && YG2.saves.RemovedNpcGuyIds.Contains(npcPersistId);
+    }
+    
+    /// <summary>
+    /// Отметить NpcGuy как убранного (не показывать снова).
+    /// </summary>
+    public void SetNpcGuyRemoved(string npcPersistId)
+    {
+        if (string.IsNullOrEmpty(npcPersistId)) return;
+        if (!YG2.saves.RemovedNpcGuyIds.Contains(npcPersistId))
+        {
+            YG2.saves.RemovedNpcGuyIds.Add(npcPersistId);
+        }
         Save();
     }
     

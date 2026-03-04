@@ -1,39 +1,59 @@
 {
-    "balanceCount": 535,
-    "balanceScaler": "K",
+    "balanceCount": 50,
+    "balanceScaler": "T",
     "Brainrots": [],
-    "PlayerSpeedLevel": 0,
+    "PlayerSpeedLevel": 60,
     "OpeningLevel": 0,
     "PlacedBrainrots": [
         {
-            "placementID": 4,
-            "brainrotName": "TungTungTungSahur",
+            "placementID": 7,
+            "brainrotName": "DragonCannelloni",
             "level": 0,
             "rarity": "Rare",
-            "baseIncome": 638
+            "baseIncome": 1147
+        },
+        {
+            "placementID": 5,
+            "brainrotName": "DragonCannelloni",
+            "level": 0,
+            "rarity": "Common",
+            "baseIncome": 865
         },
         {
             "placementID": 3,
-            "brainrotName": "KetupatKepat",
+            "brainrotName": "BlackholeGoat",
             "level": 0,
             "rarity": "Rare",
-            "baseIncome": 829
+            "baseIncome": 846
         }
     ],
     "EarnPanelBalances": [
         {
-            "panelID": 4,
-            "accumulatedBalance": 108460.0
+            "panelID": 2,
+            "accumulatedBalance": 0.0
+        },
+        {
+            "panelID": 7,
+            "accumulatedBalance": 3618785.0
+        },
+        {
+            "panelID": 5,
+            "accumulatedBalance": 74390.0
         },
         {
             "panelID": 3,
-            "accumulatedBalance": 99480.0
+            "accumulatedBalance": 232650.0
         }
     ],
     "AttackPowerLevel": 0,
     "CurrentUltimate": "IsStrongBeat1",
     "UnlockedLadders": [],
-    "HiddenWalls": [],
+    "HiddenWalls": [
+        1
+    ],
+    "RemovedNpcGuyIds": [
+        "NpcGuy_1_Npc1"
+    ],
     "intExample": 5,
     "strExample": "Hello!",
     "boolExample": [
@@ -42,5 +62,5 @@
         false,
         false
     ],
-    "idSave": 27260
+    "idSave": 27847
 }

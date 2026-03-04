@@ -57,6 +57,7 @@ public class PlaneBrSpawner : MonoBehaviour
     [SerializeField] private float chanceSecret = 0f;
 
     private List<Vector3> _spawnedPositions = new List<Vector3>();
+    private List<GameObject> _spawnedInstances = new List<GameObject>();
     private List<GameObject> _prefabs = new List<GameObject>();
     private List<string> _normalizedRarities = new List<string>();
     private List<float> _normalizedCumulative = new List<float>();
@@ -270,8 +271,60 @@ public class PlaneBrSpawner : MonoBehaviour
         }
 
         _spawnedPositions.Add(pos);
+        _spawnedInstances.Add(instance);
         position = pos;
         return true;
+    }
+
+    /// <summary>
+    /// Уничтожает текущих заспавненных брейнротов и спавнит новых (то же количество и логика, что в Start).
+    /// </summary>
+    public void RespawnAll()
+    {
+        for (int i = 0; i < _spawnedInstances.Count; i++)
+        {
+            GameObject go = _spawnedInstances[i];
+            if (go == null) continue;
+            BrainrotObject br = go.GetComponent<BrainrotObject>();
+            if (br != null && br.IsCarried())
+                continue;
+            Destroy(go);
+        }
+        _spawnedInstances.Clear();
+        _spawnedPositions.Clear();
+
+        if (_prefabs.Count == 0)
+        {
+            LoadPrefabs();
+            if (_prefabs.Count == 0) return;
+        }
+        if (_normalizedRarities.Count == 0)
+        {
+            BuildNormalizedRarityChances();
+            if (_normalizedRarities.Count == 0)
+            {
+                _normalizedRarities.Add("Common");
+                _normalizedCumulative.Add(1f);
+            }
+        }
+
+        int count = Mathf.Clamp(Random.Range(minCount, maxCount + 1), 0, 1000);
+        for (int i = 0; i < count; i++)
+            TrySpawnOne(out _);
+    }
+
+    /// <summary>
+    /// Респавнит брейнротов во всех PlaneBrSpawner на сцене.
+    /// </summary>
+    public static void RespawnAllSpawnersInScene()
+    {
+        PlaneBrSpawner[] spawners = FindObjectsByType<PlaneBrSpawner>(FindObjectsSortMode.None);
+        for (int i = 0; i < spawners.Length; i++)
+        {
+            if (spawners[i] != null)
+                spawners[i].RespawnAll();
+        }
+        Guide.InvalidateAllGuidesCache();
     }
 
 #if UNITY_EDITOR

@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 
 /// <summary>
@@ -19,6 +20,13 @@ public class WallManager : MonoBehaviour
     [Header("Wall 3")]
     [SerializeField] private GameObject wall3;
     [SerializeField] private bool hideWall3;
+
+    [Header("NPC (скрывать при разблокировке соответствующей стены)")]
+    [SerializeField] private GameObject[] npcsForWall1;
+    [SerializeField] private GameObject[] npcsForWall2;
+    [SerializeField] private GameObject[] npcsForWall3;
+
+    private const float NpcHideDelayAfterPurchase = 5f;
 
     private void Awake()
     {
@@ -50,9 +58,28 @@ public class WallManager : MonoBehaviour
         SetWallActive(wall1, hideWall1);
         SetWallActive(wall2, hideWall2);
         SetWallActive(wall3, hideWall3);
+        ApplyNpcVisibility();
     }
 
-    public bool HideWallById(int wallId, bool saveToStorage = true)
+    private void ApplyNpcVisibility()
+    {
+        SetNpcsActive(npcsForWall1, hideWall1);
+        SetNpcsActive(npcsForWall2, hideWall2);
+        SetNpcsActive(npcsForWall3, hideWall3);
+    }
+
+    private static void SetNpcsActive(GameObject[] npcs, bool wallHidden)
+    {
+        if (npcs == null) return;
+        foreach (GameObject npc in npcs)
+        {
+            if (npc != null)
+                npc.SetActive(!wallHidden);
+        }
+    }
+
+    /// <param name="delayNpcHide">Если true, NPC для этой стены скрываются через 5 сек (после покупки), а не сразу</param>
+    public bool HideWallById(int wallId, bool saveToStorage = true, bool delayNpcHide = false)
     {
         if (!TrySetHideFlagById(wallId, true))
         {
@@ -60,7 +87,18 @@ public class WallManager : MonoBehaviour
             return false;
         }
 
-        ApplyWallStates();
+        SetWallActive(wall1, hideWall1);
+        SetWallActive(wall2, hideWall2);
+        SetWallActive(wall3, hideWall3);
+
+        if (delayNpcHide)
+        {
+            StartCoroutine(HideNpcsForWallAfterDelay(wallId));
+        }
+        else
+        {
+            ApplyNpcVisibility();
+        }
 
         if (saveToStorage && GameStorage.Instance != null)
         {
@@ -68,6 +106,22 @@ public class WallManager : MonoBehaviour
         }
 
         return true;
+    }
+
+    private IEnumerator HideNpcsForWallAfterDelay(int wallId)
+    {
+        yield return new WaitForSeconds(NpcHideDelayAfterPurchase);
+        ApplyNpcVisibilityForWall(wallId);
+    }
+
+    private void ApplyNpcVisibilityForWall(int wallId)
+    {
+        switch (wallId)
+        {
+            case 1: SetNpcsActive(npcsForWall1, hideWall1); break;
+            case 2: SetNpcsActive(npcsForWall2, hideWall2); break;
+            case 3: SetNpcsActive(npcsForWall3, hideWall3); break;
+        }
     }
 
     public bool ShowWallById(int wallId, bool saveToStorage = true)

@@ -1,8 +1,10 @@
 using UnityEngine;
+using TMPro;
 
 /// <summary>
 /// Компонент для поворота UI к камере (Billboard эффект).
 /// Обеспечивает, что UI всегда смотрит в сторону камеры игрока.
+/// Центр вращения по горизонтали зависит от alignment текста (или от явно заданного PivotSource).
 /// </summary>
 [RequireComponent(typeof(Transform))]
 public class BillboardUI : MonoBehaviour
@@ -17,12 +19,27 @@ public class BillboardUI : MonoBehaviour
     [Tooltip("Добавить 180° по Y для коррекции перевёрнутой иконки (например, E)")]
     [SerializeField] private bool add180YOffset = false;
     
+    [Header("Центр вращения (горизонталь)")]
+    [Tooltip("Если задан — используется для pivot вместо чтения из TextMeshPro")]
+    [SerializeField] private HorizontalPivotSource horizontalPivotSource = HorizontalPivotSource.FromTextAlignment;
+    
     private Transform cameraTransform;
     private Transform myTransform;
+    private RectTransform rectTransform;
+    private bool pivotApplied;
+    
+    public enum HorizontalPivotSource
+    {
+        FromTextAlignment,
+        Left,
+        Center,
+        Right
+    }
     
     private void Awake()
     {
         myTransform = transform;
+        rectTransform = GetComponent<RectTransform>();
         
         // Автоматически находим главную камеру, если не установлена
         if (cameraTransform == null)
@@ -38,6 +55,55 @@ public class BillboardUI : MonoBehaviour
                 cameraTransform = mainCam.transform;
             }
         }
+    }
+    
+    private void Start()
+    {
+        ApplyPivotFromAlignment();
+    }
+    
+    /// <summary>
+    /// Устанавливает pivot RectTransform по горизонтали в зависимости от alignment (или заданного источника).
+    /// </summary>
+    private void ApplyPivotFromAlignment()
+    {
+        if (rectTransform == null || pivotApplied) return;
+        
+        float pivotX = 0f;
+        
+        if (horizontalPivotSource == HorizontalPivotSource.FromTextAlignment)
+        {
+            TMP_Text tmp = GetComponent<TMP_Text>();
+            if (tmp == null) tmp = GetComponentInChildren<TMP_Text>();
+            if (tmp != null)
+            {
+                TextAlignmentOptions a = tmp.alignment;
+                if ((a & TextAlignmentOptions.Right) != 0)
+                    pivotX = 1f;
+                else if ((a & TextAlignmentOptions.Center) != 0)
+                    pivotX = 0.5f;
+                else
+                    pivotX = 0f;
+            }
+        }
+        else
+        {
+            switch (horizontalPivotSource)
+            {
+                case HorizontalPivotSource.Left:   pivotX = 0f;   break;
+                case HorizontalPivotSource.Center: pivotX = 0.5f; break;
+                case HorizontalPivotSource.Right:  pivotX = 1f;   break;
+            }
+        }
+        
+        Vector2 oldPivot = rectTransform.pivot;
+        Vector2 newPivot = new Vector2(pivotX, oldPivot.y);
+        if (Mathf.Approximately(oldPivot.x, newPivot.x)) return;
+        
+        rectTransform.pivot = newPivot;
+        Vector2 size = rectTransform.rect.size;
+        rectTransform.anchoredPosition += (oldPivot - newPivot) * size;
+        pivotApplied = true;
     }
     
     /// <summary>

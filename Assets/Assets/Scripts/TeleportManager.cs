@@ -166,6 +166,7 @@ public class TeleportManager : MonoBehaviour
         SetNotificationAlpha(gotBrainrotText, 1f);
         StartNotificationPulse(gotBrainrotText.transform, cachedGotBrainrotTextBaseScale);
         StartNotificationHideAfterDelay(gotBrainrotText, cachedGotBrainrotTextBaseScale);
+        PlaneBrSpawner.RespawnAllSpawnersInScene();
     }
     
     /// <summary>
@@ -177,6 +178,7 @@ public class TeleportManager : MonoBehaviour
         ShowLoseText();
         RemoveCarriedBrainrot();
         DestroyAllBalls();
+        PlaneBrSpawner.RespawnAllSpawnersInScene();
         TeleportToHouse();
     }
 

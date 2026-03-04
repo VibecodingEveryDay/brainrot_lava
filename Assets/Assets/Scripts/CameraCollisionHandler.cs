@@ -36,15 +36,33 @@ public class CameraCollisionHandler : MonoBehaviour
     [Tooltip("Плавность движения камеры (меньше = плавнее)")]
     [SerializeField] private float smoothTime = 0.2f;
     
+    [Tooltip("Плавность высоты пола (устраняет дёргание на ступеньках)")]
+    [SerializeField] private float floorSmoothTime = 0.15f;
+    
+    [Tooltip("Плавность вертикальной позиции камеры по Y")]
+    [SerializeField] private float verticalSmoothTime = 0.08f;
+    
     [Header("Debug")]
     [Tooltip("Показывать лучи в редакторе")]
     [SerializeField] private bool showDebugRays = false;
+    
+    private const string WallBallTag = "WallBall";
     
     // Текущее расстояние камеры (изменяется при столкновениях)
     private float currentDistance;
     
     // Для SmoothDamp
     private float distanceVelocity;
+    
+    // Сглаживание высоты пола (ступеньки)
+    private float smoothedFloorHeight;
+    private float floorHeightVelocity;
+    private bool floorHeightInitialized;
+    
+    // Сглаживание вертикальной позиции камеры
+    private float lastCameraY;
+    private float cameraYVelocity;
+    private bool cameraYInitialized;
     
     // Кэш компонента камеры
     private Camera cam;
@@ -186,6 +204,27 @@ public class CameraCollisionHandler : MonoBehaviour
         // Проверяем вертикальные препятствия сверху и снизу
         newPosition = CheckVerticalObstacles(newPosition);
         
+        // Сглаживание по Y только когда камера ограничена полом (ступеньки), иначе — без задержки
+        const float floorConstraintTolerance = 0.35f;
+        bool cameraConstrainedByFloor = floorHeightInitialized && newPosition.y <= smoothedFloorHeight + floorConstraintTolerance;
+        
+        if (!cameraYInitialized)
+        {
+            lastCameraY = newPosition.y;
+            cameraYVelocity = 0f;
+            cameraYInitialized = true;
+        }
+        else if (cameraConstrainedByFloor)
+        {
+            lastCameraY = Mathf.SmoothDamp(lastCameraY, newPosition.y, ref cameraYVelocity, verticalSmoothTime);
+            newPosition.y = lastCameraY;
+        }
+        else
+        {
+            lastCameraY = newPosition.y;
+            cameraYVelocity = 0f;
+        }
+        
         // Устанавливаем скорректированную позицию камеры
         transform.position = newPosition;
     }
@@ -202,7 +241,7 @@ public class CameraCollisionHandler : MonoBehaviour
         if (len < 0.001f) return maxDistance;
         dirFromTargetToCamera /= len;
         RaycastHit hit;
-        if (Physics.Raycast(target.position, dirFromTargetToCamera, out hit, maxDistance, obstacleMask, QueryTriggerInteraction.Ignore))
+        if (RaycastIgnoreWallBall(target.position, dirFromTargetToCamera, maxDistance, out hit))
         {
             float safe = hit.distance - collisionOffset;
             safe = Mathf.Clamp(safe, minDistance, maxDistance);
@@ -211,6 +250,34 @@ public class CameraCollisionHandler : MonoBehaviour
             return safe;
         }
         return maxDistance;
+    }
+    
+    private static bool IsWallBall(Collider c) => c != null && c.CompareTag(WallBallTag);
+    
+    private bool RaycastIgnoreWallBall(Vector3 origin, Vector3 direction, float maxDistance, out RaycastHit hit)
+    {
+        RaycastHit[] hits = Physics.RaycastAll(origin, direction, maxDistance, obstacleMask, QueryTriggerInteraction.Ignore);
+        hit = default;
+        float bestDist = maxDistance + 1f;
+        for (int i = 0; i < hits.Length; i++)
+        {
+            if (hits[i].collider == null || IsWallBall(hits[i].collider)) continue;
+            if (hits[i].distance < bestDist) { bestDist = hits[i].distance; hit = hits[i]; }
+        }
+        return hit.collider != null;
+    }
+    
+    private bool SphereCastIgnoreWallBall(Vector3 origin, float radius, Vector3 direction, out RaycastHit hit, float maxDistance)
+    {
+        RaycastHit[] hits = Physics.SphereCastAll(origin, radius, direction, maxDistance, obstacleMask, QueryTriggerInteraction.Ignore);
+        hit = default;
+        float bestDist = maxDistance + 1f;
+        for (int i = 0; i < hits.Length; i++)
+        {
+            if (hits[i].collider == null || IsWallBall(hits[i].collider)) continue;
+            if (hits[i].distance < bestDist) { bestDist = hits[i].distance; hit = hits[i]; }
+        }
+        return hit.collider != null;
     }
 
     /// <summary>
@@ -239,14 +306,7 @@ public class CameraCollisionHandler : MonoBehaviour
         {
             Vector3 directionFromTarget = -directionToTarget;
             RaycastHit quickCheck;
-            if (!Physics.SphereCast(
-                target.position,
-                collisionRadius,
-                directionFromTarget,
-                out quickCheck,
-                maxDistance,
-                obstacleMask,
-                QueryTriggerInteraction.Ignore))
+            if (!SphereCastIgnoreWallBall(target.position, collisionRadius, directionFromTarget, out quickCheck, maxDistance))
             {
                 return GetRaycastSafeDistanceFromTarget(maxDistance);
             }
@@ -256,23 +316,23 @@ public class CameraCollisionHandler : MonoBehaviour
         // Это решает проблему, когда камера находится внутри полого блока
         
         // Метод 1: OverlapSphere для проверки пересечения с коллайдерами
-        Collider[] overlappingColliders = Physics.OverlapSphere(
+        Collider[] overlappingCollidersRaw = Physics.OverlapSphere(
             rayStart,
             collisionRadius, // Используем полный радиус для проверки
             obstacleMask,
             QueryTriggerInteraction.Ignore
         );
-        
-        // Метод 2: Дополнительная проверка через Raycast от камеры к цели
-        // Если луч сразу попадает в препятствие на очень маленьком расстоянии, камера внутри
-        bool isInsideObstacle = overlappingColliders.Length > 0;
+        int overlappingCount = 0;
+        for (int o = 0; o < overlappingCollidersRaw.Length; o++)
+            if (!IsWallBall(overlappingCollidersRaw[o])) overlappingCount++;
+        bool isInsideObstacle = overlappingCount > 0;
         
         if (!isInsideObstacle)
         {
             // Проверяем через короткий Raycast к цели
             // Если препятствие обнаружено сразу (расстояние < 0.1f), камера внутри
             RaycastHit immediateHit;
-            if (Physics.Raycast(rayStart, directionToTarget, out immediateHit, 0.1f, obstacleMask, QueryTriggerInteraction.Ignore))
+            if (RaycastIgnoreWallBall(rayStart, directionToTarget, 0.1f, out immediateHit))
             {
                 isInsideObstacle = true;
             }
@@ -287,14 +347,7 @@ public class CameraCollisionHandler : MonoBehaviour
             
             // Выполняем Raycast от камеры к цели для поиска препятствий
             RaycastHit hitFromCamera;
-            bool hasHitFromCamera = Physics.Raycast(
-                rayStart,
-                directionToTarget,
-                out hitFromCamera,
-                distanceToTarget,
-                obstacleMask,
-                QueryTriggerInteraction.Ignore
-            );
+            bool hasHitFromCamera = RaycastIgnoreWallBall(rayStart, directionToTarget, distanceToTarget, out hitFromCamera);
             
             if (hasHitFromCamera)
             {
@@ -321,15 +374,7 @@ public class CameraCollisionHandler : MonoBehaviour
                 RaycastHit reverseHit;
                 
                 // Выполняем SphereCast от цели в направлении камеры
-                bool hasReverseHit = Physics.SphereCast(
-                    target.position,
-                    collisionRadius,
-                    reverseDirection,
-                    out reverseHit,
-                    distanceToTarget,
-                    obstacleMask,
-                    QueryTriggerInteraction.Ignore
-                );
+                bool hasReverseHit = SphereCastIgnoreWallBall(target.position, collisionRadius, reverseDirection, out reverseHit, distanceToTarget);
                 
                 if (hasReverseHit)
                 {
@@ -369,15 +414,7 @@ public class CameraCollisionHandler : MonoBehaviour
         float adjustedDistance = distanceToTarget - collisionRadius;
         
         RaycastHit hit;
-        bool hasHit = Physics.SphereCast(
-            adjustedStart,
-            collisionRadius,
-            directionToTarget,
-            out hit,
-            adjustedDistance,
-            obstacleMask,
-            QueryTriggerInteraction.Ignore
-        );
+        bool hasHit = SphereCastIgnoreWallBall(adjustedStart, collisionRadius, directionToTarget, out hit, adjustedDistance);
         
         if (showDebugRays)
         {
@@ -425,7 +462,7 @@ public class CameraCollisionHandler : MonoBehaviour
         Vector3 upDirection = Vector3.up;
         float maxUpDistance = 10f;
         
-        if (Physics.Raycast(target.position, upDirection, out hitUp, maxUpDistance, obstacleMask, QueryTriggerInteraction.Ignore))
+        if (RaycastIgnoreWallBall(target.position, upDirection, maxUpDistance, out hitUp))
         {
             float ceilingHeight = hitUp.point.y - collisionOffset;
             if (desiredPosition.y > ceilingHeight)
@@ -434,7 +471,9 @@ public class CameraCollisionHandler : MonoBehaviour
             }
         }
         
-        // === УЛУЧШЕННАЯ ПРОВЕРКА ПОЛА ===
+        // === УЛУЧШЕННАЯ ПРОВЕРКА ПОЛА (со сглаживанием для ступенек) ===
+        
+        const float minFloorNormalY = 0.7f; // Только горизонтальные поверхности (исключаем стенки ступенек)
         
         // 1. Проверяем пол под target (основной пол уровня)
         RaycastHit hitDownFromTarget;
@@ -443,26 +482,44 @@ public class CameraCollisionHandler : MonoBehaviour
         
         float floorHeight = float.MinValue;
         
-        if (Physics.Raycast(target.position, downDirection, out hitDownFromTarget, maxDownDistance, obstacleMask, QueryTriggerInteraction.Ignore))
+        if (RaycastIgnoreWallBall(target.position, downDirection, maxDownDistance, out hitDownFromTarget))
         {
-            floorHeight = hitDownFromTarget.point.y + collisionOffset;
+            if (hitDownFromTarget.normal.y >= minFloorNormalY)
+                floorHeight = hitDownFromTarget.point.y + collisionOffset;
         }
         
         // 2. Проверяем пол под желаемой позицией камеры
         RaycastHit hitDownFromCamera;
-        if (Physics.Raycast(desiredPosition + Vector3.up * 2f, downDirection, out hitDownFromCamera, maxDownDistance, obstacleMask, QueryTriggerInteraction.Ignore))
+        if (RaycastIgnoreWallBall(desiredPosition + Vector3.up * 2f, downDirection, maxDownDistance, out hitDownFromCamera))
         {
-            float cameraFloorHeight = hitDownFromCamera.point.y + collisionOffset;
-            // Используем более высокий пол
-            if (cameraFloorHeight > floorHeight)
+            if (hitDownFromCamera.normal.y >= minFloorNormalY)
             {
-                floorHeight = cameraFloorHeight;
+                float cameraFloorHeight = hitDownFromCamera.point.y + collisionOffset;
+                if (cameraFloorHeight > floorHeight)
+                    floorHeight = cameraFloorHeight;
             }
+        }
+        
+        // 2.1 Сглаживаем высоту пола (устраняет дёргание на ступеньках)
+        if (floorHeight > float.MinValue)
+        {
+            if (!floorHeightInitialized)
+            {
+                smoothedFloorHeight = floorHeight;
+                floorHeightVelocity = 0f;
+                floorHeightInitialized = true;
+            }
+            else
+            {
+                smoothedFloorHeight = Mathf.SmoothDamp(smoothedFloorHeight, floorHeight, ref floorHeightVelocity, floorSmoothTime);
+            }
+            if (desiredPosition.y < smoothedFloorHeight)
+                desiredPosition.y = smoothedFloorHeight;
         }
         
         // 3. Проверяем, не находится ли камера уже под полом (SphereCast вверх)
         RaycastHit hitUpFromCamera;
-        if (Physics.SphereCast(desiredPosition, collisionRadius, upDirection, out hitUpFromCamera, 5f, obstacleMask, QueryTriggerInteraction.Ignore))
+        if (SphereCastIgnoreWallBall(desiredPosition, collisionRadius, upDirection, out hitUpFromCamera, 5f))
         {
             // Если над камерой есть препятствие очень близко, возможно камера под полом
             // Проверяем, является ли это препятствие "полом" (нормаль смотрит вниз)
@@ -482,19 +539,14 @@ public class CameraCollisionHandler : MonoBehaviour
             }
         }
         
-        // 4. Применяем ограничение по полу
-        if (floorHeight > float.MinValue && desiredPosition.y < floorHeight)
-        {
-            desiredPosition.y = floorHeight;
-        }
-        
-        // 5. Дополнительно: проверяем OverlapSphere для обнаружения пересечения с любыми коллайдерами
+        // 4. Дополнительно: проверяем OverlapSphere для обнаружения пересечения с любыми коллайдерами
         Collider[] overlaps = Physics.OverlapSphere(desiredPosition, collisionRadius, obstacleMask, QueryTriggerInteraction.Ignore);
         if (overlaps.Length > 0)
         {
-            // Камера пересекается с чем-то - пробуем поднять её
+            // Камера пересекается с чем-то - пробуем поднять её (игнорируем WallBall)
             foreach (Collider col in overlaps)
             {
+                if (IsWallBall(col)) continue;
                 // ClosestPoint поддерживается только для Box, Sphere, Capsule и выпуклого MeshCollider
                 if (!IsClosestPointSupported(col))
                     continue;
@@ -620,6 +672,10 @@ public class CameraCollisionHandler : MonoBehaviour
         currentDistance = defaultDistance;
         distanceVelocity = 0f; // Обнуляем скорость изменения расстояния
         
+        // Сбрасываем сглаживание пола и по Y, чтобы после телепортации значения пересчитались
+        floorHeightInitialized = false;
+        cameraYInitialized = false;
+
         // Принудительно устанавливаем позицию камеры на правильное расстояние
         // Это предотвращает быстрое приближение после телепортации
         Vector3 correctPosition = target.position + lastValidDirection * defaultDistance;

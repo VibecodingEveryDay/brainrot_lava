@@ -33,8 +33,13 @@ public class ThirdPersonController : MonoBehaviour
     [SerializeField] private ThirdPersonCamera cameraController;
     
     [Header("Animation")]
-    [Tooltip("Скорость воспроизведения анимации бега (1 = нормальная, 2 = в 2 раза быстрее)")]
-    [SerializeField] private float runAnimationSpeed = 1f;
+    [Tooltip("Скорость воспроизведения анимации бега (вычисляется по уровню скорости: 10 лвл = 1.6, макс лвл = 2.5)")]
+    [SerializeField] private float runAnimationSpeed = 1.6f;
+    
+    private const int RunAnimSpeedMinLevel = 10;   // начальный уровень (как нулевой)
+    private const int RunAnimSpeedMaxLevel = 60;   // последний уровень (должен совпадать с ShopSpeedManager.MAX_LEVEL)
+    private const float RunAnimSpeedAtMinLevel = 1.6f;
+    private const float RunAnimSpeedAtMaxLevel = 2.5f;
     
     [Header("Ground Check (оптимизировано для ступенек и прыжков)")]
     [Tooltip("Длина проверки вниз от ног (лучи + SphereCast).")]
@@ -280,6 +285,9 @@ public class ThirdPersonController : MonoBehaviour
         Vector3 bottom = transform.position + characterController.center + Vector3.down * (characterController.height * 0.5f);
         float len = groundCheckLength;
         int layerMask = ~0;
+        int wallBallLayer = LayerMask.NameToLayer("WallBall");
+        if (wallBallLayer >= 0)
+            layerMask &= ~(1 << wallBallLayer);
         var query = QueryTriggerInteraction.Ignore;
         
         bool contact = false;
@@ -785,9 +793,14 @@ public class ThirdPersonController : MonoBehaviour
         int speedLevel = gameStorage.GetPlayerSpeedLevel();
         moveSpeed = baseMoveSpeed + (speedLevel * speedLevelScaler);
         
+        // Скорость анимации бега растёт с уровнем: 10 лвл = 1.25, макс (60) = 2.25
+        int levelClamped = Mathf.Clamp(speedLevel, RunAnimSpeedMinLevel, RunAnimSpeedMaxLevel);
+        runAnimationSpeed = Mathf.Lerp(RunAnimSpeedAtMinLevel, RunAnimSpeedAtMaxLevel,
+            (levelClamped - RunAnimSpeedMinLevel) / (float)(RunAnimSpeedMaxLevel - RunAnimSpeedMinLevel));
+        
         if (debugSpeed)
         {
-            Debug.Log($"[ThirdPersonController] Скорость обновлена: baseMoveSpeed={baseMoveSpeed}, speedLevel={speedLevel}, speedLevelScaler={speedLevelScaler}, moveSpeed={moveSpeed}");
+            Debug.Log($"[ThirdPersonController] Скорость обновлена: baseMoveSpeed={baseMoveSpeed}, speedLevel={speedLevel}, speedLevelScaler={speedLevelScaler}, moveSpeed={moveSpeed}, runAnimationSpeed={runAnimationSpeed}");
         }
     }
     

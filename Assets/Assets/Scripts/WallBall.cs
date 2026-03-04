@@ -1,19 +1,31 @@
 using UnityEngine;
 
 /// <summary>
-/// Куб/объект с коллайдером: мяч от него отскакивает, игрок проходит сквозь (коллизия с игроком отключена).
+/// Куб/объект с коллайдером: мяч от него отскакивает, игрок и всё остальное проходят сквозь (коллизия только с Ball).
+/// Чтобы игрок не «вставал» на стену на несколько кадров: в инспекторе назначьте объектам стен слой WallBall до запуска сцены.
 /// </summary>
+[DefaultExecutionOrder(-200)]
 public class WallBall : MonoBehaviour
 {
-    [Tooltip("Тег игрока (с ним коллизия отключается)")]
+    [Tooltip("Тег игрока (с ним коллизия отключается через IgnoreCollision)")]
     [SerializeField] private string playerTag = "Player";
 
     private static GameObject _cachedPlayer;
     private static Collider[] _cachedPlayerColliders;
 
-    private void Start()
+    private void Awake()
     {
+        int wallBallLayer = LayerMask.NameToLayer("WallBall");
+        if (wallBallLayer >= 0)
+            SetLayerRecursively(gameObject, wallBallLayer);
         IgnoreCollisionWithPlayer();
+    }
+
+    private static void SetLayerRecursively(GameObject go, int layer)
+    {
+        go.layer = layer;
+        for (int i = 0; i < go.transform.childCount; i++)
+            SetLayerRecursively(go.transform.GetChild(i).gameObject, layer);
     }
 
     private void IgnoreCollisionWithPlayer()

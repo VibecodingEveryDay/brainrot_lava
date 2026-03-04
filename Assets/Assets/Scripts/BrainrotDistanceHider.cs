@@ -101,6 +101,7 @@ public class BrainrotDistanceHider : MonoBehaviour
             {
                 rebuildTimer = 0f;
                 RebuildCache();
+                RefreshNow();
             }
         }
 
@@ -112,6 +113,7 @@ public class BrainrotDistanceHider : MonoBehaviour
             {
                 _emptyCacheRebuildCooldown = 0f;
                 RebuildCache();
+                RefreshNow();
             }
         }
         else
@@ -199,11 +201,8 @@ public class BrainrotDistanceHider : MonoBehaviour
             float distSqr = (e.brainrot.transform.position - playerTransform.position).sqrMagnitude;
             bool shouldHide = distSqr > hideRangeSqr;
 
-            if (shouldHide != e.currentlyHidden)
-            {
-                SetHidden(ref e, shouldHide);
-                entries[i] = e;
-            }
+            SetHidden(ref e, shouldHide);
+            entries[i] = e;
         }
     }
 

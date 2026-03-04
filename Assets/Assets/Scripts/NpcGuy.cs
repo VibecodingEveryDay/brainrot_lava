@@ -12,6 +12,9 @@ public class NpcGuy : InteractableObject
     
     [Tooltip("ID стены для скрытия (1, 2 или 3)")]
     [SerializeField] private int wallId = 1;
+    
+    [Tooltip("Уникальный ключ для сохранения «NPC убран» (если пусто — wallId + имя объекта)")]
+    [SerializeField] private string npcPersistId;
 
     [Header("Animator")]
     [SerializeField] private Animator animator;
@@ -20,6 +23,7 @@ public class NpcGuy : InteractableObject
 
     private WallManager wallManager;
     private Coroutine resetTriggerCoroutine;
+    private Coroutine removeAfterDelayCoroutine;
 
     protected override void Awake()
     {
@@ -28,6 +32,20 @@ public class NpcGuy : InteractableObject
         {
             animator = GetComponent<Animator>();
         }
+    }
+
+    private void Start()
+    {
+        if (GameStorage.Instance != null && GameStorage.Instance.IsNpcGuyRemoved(GetNpcPersistKey()))
+        {
+            gameObject.SetActive(false);
+        }
+    }
+
+    private string GetNpcPersistKey()
+    {
+        if (!string.IsNullOrEmpty(npcPersistId)) return npcPersistId;
+        return "NpcGuy_" + wallId + "_" + gameObject.name;
     }
 
     protected override bool ShouldShowInteractionUI()
@@ -80,7 +98,7 @@ public class NpcGuy : InteractableObject
             return;
         }
 
-        bool hidden = wallManager.HideWallById(wallId, true);
+        bool hidden = wallManager.HideWallById(wallId, saveToStorage: true, delayNpcHide: true);
         if (!hidden)
         {
             Debug.LogWarning($"[NpcGuy] {gameObject.name}: не удалось скрыть стену с wallId={wallId}.");
@@ -89,6 +107,26 @@ public class NpcGuy : InteractableObject
         }
 
         TriggerActionAnimation();
+        
+        // Через 5 сек удалить NPC и не показывать снова, если стена с wallId разблокирована (скрыта)
+        if (removeAfterDelayCoroutine != null)
+            StopCoroutine(removeAfterDelayCoroutine);
+        removeAfterDelayCoroutine = StartCoroutine(RemoveAfterDelayIfWallUnlocked());
+    }
+
+    private IEnumerator RemoveAfterDelayIfWallUnlocked()
+    {
+        yield return new WaitForSeconds(5f);
+        removeAfterDelayCoroutine = null;
+        
+        if (!IsTargetWallHidden())
+            yield break;
+        
+        if (GameStorage.Instance != null)
+        {
+            GameStorage.Instance.SetNpcGuyRemoved(GetNpcPersistKey());
+        }
+        gameObject.SetActive(false);
     }
 
     private bool IsTargetWallHidden()
