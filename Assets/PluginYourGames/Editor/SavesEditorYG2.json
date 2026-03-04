@@ -1,6 +1,6 @@
 {
-    "balanceCount": 0,
-    "balanceScaler": "",
+    "balanceCount": 535,
+    "balanceScaler": "K",
     "Brainrots": [],
     "PlayerSpeedLevel": 0,
     "OpeningLevel": 0,
@@ -11,12 +11,23 @@
             "level": 0,
             "rarity": "Rare",
             "baseIncome": 638
+        },
+        {
+            "placementID": 3,
+            "brainrotName": "KetupatKepat",
+            "level": 0,
+            "rarity": "Rare",
+            "baseIncome": 829
         }
     ],
     "EarnPanelBalances": [
         {
             "panelID": 4,
-            "accumulatedBalance": 322190.0
+            "accumulatedBalance": 108460.0
+        },
+        {
+            "panelID": 3,
+            "accumulatedBalance": 99480.0
         }
     ],
     "AttackPowerLevel": 0,
@@ -31,5 +42,5 @@
         false,
         false
     ],
-    "idSave": 27232
+    "idSave": 27260
 }

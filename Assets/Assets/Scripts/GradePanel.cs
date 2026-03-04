@@ -72,7 +72,11 @@ public class GradePanel : MonoBehaviour
     
     // Флаг для отслеживания, идет ли анимация улучшения
     private bool isAnimating = false;
-    
+    private int _lastLevel = -1;
+    private string _lastLevelLang = "";
+    private Camera _cachedCamera;
+    private Collider _cachedDetectionCollider;
+
     private void Awake()
     {
         // Автоматически находим TextMeshPro компонент в дочернем объекте "Level"
@@ -249,27 +253,16 @@ public class GradePanel : MonoBehaviour
     /// </summary>
     private Vector3 GetDetectionPosition()
     {
-        // Приоритет: используем позицию размещения из связанной PlacementPanel
         if (linkedPlacementPanel != null)
-        {
             return linkedPlacementPanel.GetPlacementPosition();
-        }
-        
-        // Если PlacementPanel не найдена, используем позицию самой панели
-        // Пытаемся использовать центр коллайдера (всегда возвращает мировые координаты)
-        Collider col = GetComponent<Collider>();
-        if (col == null)
+        if (_cachedDetectionCollider == null)
         {
-            col = GetComponentInChildren<Collider>();
+            _cachedDetectionCollider = GetComponent<Collider>();
+            if (_cachedDetectionCollider == null)
+                _cachedDetectionCollider = GetComponentInChildren<Collider>();
         }
-        
-        if (col != null)
-        {
-            // bounds.center всегда возвращает мировую позицию
-            return col.bounds.center;
-        }
-        
-        // Если коллайдера нет, используем transform.position (тоже мировые координаты)
+        if (_cachedDetectionCollider != null)
+            return _cachedDetectionCollider.bounds.center;
         return transform.position;
     }
     
@@ -406,45 +399,26 @@ public class GradePanel : MonoBehaviour
     private void UpdateLevelText()
     {
         if (levelText == null) return;
-        
         string lang = GetCurrentLanguage();
+        int currentLevel = placedBrainrot != null ? placedBrainrot.GetLevel() : 0;
+        if (currentLevel == _lastLevel && lang == _lastLevelLang) return;
+        _lastLevel = currentLevel;
+        _lastLevelLang = lang;
+
         string levelPrefix = lang == "ru" ? "Ур" : "Lv";
         string maxLevelText = lang == "ru" ? "Макс. ур" : "Max Level";
-        
         if (placedBrainrot == null)
         {
-            // Если нет размещённого брейнрота, показываем пустой текст или дефолтное значение
-            if (lang == "ru")
-            {
-                levelText.text = $"{levelPrefix}.0 -> {levelPrefix}.0";
-            }
-            else
-            {
-                levelText.text = $"({levelPrefix}.0 -> {levelPrefix}.0)";
-            }
+            levelText.text = lang == "ru" ? $"{levelPrefix}.0 -> {levelPrefix}.0" : $"({levelPrefix}.0 -> {levelPrefix}.0)";
             return;
         }
-        
-        int currentLevel = placedBrainrot.GetLevel();
-        
-        // Если уровень достиг 20, показываем локализованный текст
         if (currentLevel >= 20)
         {
             levelText.text = maxLevelText;
             return;
         }
-        
         int nextLevel = currentLevel + 1;
-        
-        // Форматируем текст: для русского без скобок, для английского со скобками
-        if (lang == "ru")
-        {
-            levelText.text = $"{levelPrefix}.{currentLevel} -> {levelPrefix}.{nextLevel}";
-        }
-        else
-        {
-            levelText.text = $"({levelPrefix}.{currentLevel} -> {levelPrefix}.{nextLevel})";
-        }
+        levelText.text = lang == "ru" ? $"{levelPrefix}.{currentLevel} -> {levelPrefix}.{nextLevel}" : $"({levelPrefix}.{currentLevel} -> {levelPrefix}.{nextLevel})";
     }
     
     /// <summary>
@@ -505,13 +479,13 @@ public class GradePanel : MonoBehaviour
             return;
         }
         
-        // Получаем камеру (главную камеру или камеру из сцены)
-        Camera mainCamera = Camera.main;
-        if (mainCamera == null)
+        if (_cachedCamera == null)
         {
-            mainCamera = FindFirstObjectByType<Camera>();
+            _cachedCamera = Camera.main;
+            if (_cachedCamera == null)
+                _cachedCamera = FindFirstObjectByType<Camera>();
         }
-        
+        Camera mainCamera = _cachedCamera;
         if (mainCamera == null)
         {
             if (debug)

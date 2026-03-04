@@ -82,31 +82,25 @@ public class TrashPlacement : MonoBehaviour
     /// <summary>
     /// Обновляет ссылку на размещённый brainrot объект
     /// </summary>
+    private static System.Reflection.FieldInfo _cachedLinkedPlacementPanelField;
+
     private void UpdatePlacedBrainrot()
     {
         if (linkedPlacementPanel == null)
         {
-            // Пытаемся получить PlacementPanel через GradePanel снова
             if (gradePanel != null)
             {
-                var gradePanelType = typeof(GradePanel);
-                var placementPanelField = gradePanelType.GetField("linkedPlacementPanel", 
-                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                
-                if (placementPanelField != null)
-                {
-                    linkedPlacementPanel = placementPanelField.GetValue(gradePanel) as PlacementPanel;
-                }
+                if (_cachedLinkedPlacementPanelField == null)
+                    _cachedLinkedPlacementPanelField = typeof(GradePanel).GetField("linkedPlacementPanel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                if (_cachedLinkedPlacementPanelField != null)
+                    linkedPlacementPanel = _cachedLinkedPlacementPanelField.GetValue(gradePanel) as PlacementPanel;
             }
-            
             if (linkedPlacementPanel == null)
             {
                 placedBrainrot = null;
                 return;
             }
         }
-        
-        // Получаем размещённый brainrot из связанной панели
         placedBrainrot = linkedPlacementPanel.GetPlacedBrainrot();
     }
     

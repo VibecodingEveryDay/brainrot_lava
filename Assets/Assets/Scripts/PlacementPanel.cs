@@ -57,9 +57,25 @@ public class PlacementPanel : InteractableObject
     
     // Флаг, указывающий, что объект только что был взят из панели (чтобы предотвратить немедленное размещение обратно)
     private bool justTookFromPanel = false;
-    
+
+    private float _lastCheckPlacedBrainrotSearchTime = -999f;
+    private const float CHECK_PLACED_BRAINROT_SEARCH_INTERVAL = 0.6f;
+
+    private static FieldInfo _cachedInteractionPointField;
+    private static FieldInfo _cachedCachedPositionField;
+    private static FieldInfo _cachedCurrentUIInstanceField;
+    private static FieldInfo _cachedUIOffsetField;
+    private static FieldInfo _cachedInteractionRangeField;
+    private static FieldInfo _cachedPlayerTransformField;
+    private static FieldInfo _cachedInteractionCompletedField;
+    private static FieldInfo _cachedIsPlayerInRangeField;
+
+    private static int _isPlacedCacheFrame = -1;
+    private static System.Collections.Generic.Dictionary<BrainrotObject, bool> _isPlacedCache;
+
     protected override void Awake()
     {
+        CacheReflectionFields();
         base.Awake();
         // Регистрируем панель в статическом списке
         if (!allPanels.Contains(this))
@@ -83,6 +99,20 @@ public class PlacementPanel : InteractableObject
         {
             CreateInteractionPoint();
         }
+    }
+
+    private static void CacheReflectionFields()
+    {
+        if (_cachedInteractionPointField != null) return;
+        var t = typeof(InteractableObject);
+        _cachedInteractionPointField = t.GetField("interactionPoint", BindingFlags.NonPublic | BindingFlags.Instance);
+        _cachedCachedPositionField = t.GetField("cachedInteractionPosition", BindingFlags.NonPublic | BindingFlags.Instance);
+        _cachedCurrentUIInstanceField = t.GetField("currentUIInstance", BindingFlags.NonPublic | BindingFlags.Instance);
+        _cachedUIOffsetField = t.GetField("uiOffset", BindingFlags.NonPublic | BindingFlags.Instance);
+        _cachedInteractionRangeField = t.GetField("interactionRange", BindingFlags.NonPublic | BindingFlags.Instance);
+        _cachedPlayerTransformField = t.GetField("playerTransform", BindingFlags.NonPublic | BindingFlags.Instance);
+        _cachedInteractionCompletedField = t.GetField("interactionCompleted", BindingFlags.NonPublic | BindingFlags.Instance);
+        _cachedIsPlayerInRangeField = t.GetField("isPlayerInRange", BindingFlags.NonPublic | BindingFlags.Instance);
     }
     
     private void OnEnable()
@@ -291,37 +321,19 @@ public class PlacementPanel : InteractableObject
     /// </summary>
     private void CreateInteractionPoint()
     {
-        // Используем рефлексию для установки interactionPoint
-        FieldInfo interactionPointField = typeof(InteractableObject).GetField("interactionPoint", 
-            BindingFlags.NonPublic | BindingFlags.Instance);
-        
-        if (interactionPointField != null)
+        if (_cachedInteractionPointField == null) return;
+        Transform existingPoint = _cachedInteractionPointField.GetValue(this) as Transform;
+        Vector3 worldCenter = panelCollider.bounds.center;
+        if (existingPoint == null)
         {
-            Transform existingPoint = interactionPointField.GetValue(this) as Transform;
-            
-            // Если точка взаимодействия еще не создана, создаем её
-            if (existingPoint == null)
-            {
-                GameObject interactionPointObj = new GameObject("InteractionPoint_" + gameObject.name);
-                // ВАЖНО: НЕ устанавливаем родителя, чтобы избежать проблем с локальными координатами
-                // interactionPointObj.transform.SetParent(null);
-                
-                // Устанавливаем мировую позицию в центр коллайдера
-                // Используем bounds.center, который всегда возвращает мировую позицию
-                Vector3 worldCenter = panelCollider.bounds.center;
-                interactionPointObj.transform.position = worldCenter;
-                
-                // Устанавливаем точку взаимодействия через рефлексию
-                interactionPointField.SetValue(this, interactionPointObj.transform);
-                
-                Debug.Log($"[PlacementPanel] Создана точка взаимодействия в позиции {worldCenter} (центр коллайдера панели)");
-            }
-            else
-            {
-                // Если точка уже существует, обновляем её позицию
-                Vector3 worldCenter = panelCollider.bounds.center;
-                existingPoint.position = worldCenter;
-            }
+            GameObject interactionPointObj = new GameObject("InteractionPoint_" + gameObject.name);
+            interactionPointObj.transform.position = worldCenter;
+            _cachedInteractionPointField.SetValue(this, interactionPointObj.transform);
+            Debug.Log($"[PlacementPanel] Создана точка взаимодействия в позиции {worldCenter} (центр коллайдера панели)");
+        }
+        else
+        {
+            existingPoint.position = worldCenter;
         }
     }
     
@@ -371,20 +383,11 @@ public class PlacementPanel : InteractableObject
         
         // ВАЖНО: Если можем показать UI, но interactionCompleted = true, сбрасываем его ПЕРЕД base.Update()
         // Это нужно, чтобы base.Update() мог создать UI
-        if (mightShowUI)
+        if (mightShowUI && _cachedInteractionCompletedField != null)
         {
-            // Используем рефлексию для проверки и сброса interactionCompleted
-            System.Reflection.FieldInfo interactionCompletedField = typeof(InteractableObject).GetField("interactionCompleted", 
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            if (interactionCompletedField != null)
-            {
-                bool interactionCompleted = (bool)interactionCompletedField.GetValue(this);
-                if (interactionCompleted)
-                {
-                    // Сбрасываем состояние взаимодействия, чтобы UI мог появиться
-                    ResetInteraction();
-                }
-            }
+            bool interactionCompleted = (bool)_cachedInteractionCompletedField.GetValue(this);
+            if (interactionCompleted)
+                ResetInteraction();
         }
         
         // Всегда вызываем base.Update() для проверки расстояния до игрока
@@ -401,15 +404,9 @@ public class PlacementPanel : InteractableObject
             ((placedBrainrot != null && !hasBrainrotInHands) || (hasBrainrotInHands && placedBrainrot == null));
         
         // Если эта панель не ближайшая, принудительно отключаем взаимодействие
-        if (!isClosestPanel)
+        if (!isClosestPanel && _cachedIsPlayerInRangeField != null)
         {
-            // Используем рефлексию для установки isPlayerInRange = false
-            System.Reflection.FieldInfo isPlayerInRangeField = typeof(InteractableObject).GetField("isPlayerInRange", 
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            if (isPlayerInRangeField != null)
-            {
-                isPlayerInRangeField.SetValue(this, false);
-            }
+            _cachedIsPlayerInRangeField.SetValue(this, false);
             
             // Скрываем UI если он показан
             if (HasUI())
@@ -494,14 +491,9 @@ public class PlacementPanel : InteractableObject
         PlacementPanel closestPanel = null;
         float closestDistance = float.MaxValue;
         
-        // Получаем радиус взаимодействия через рефлексию (используем значение из первой панели)
-        System.Reflection.FieldInfo interactionRangeField = typeof(InteractableObject).GetField("interactionRange", 
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        float interactionRange = 3f; // Значение по умолчанию
-        if (interactionRangeField != null)
-        {
-            interactionRange = (float)interactionRangeField.GetValue(this);
-        }
+        float interactionRange = 3f;
+        if (_cachedInteractionRangeField != null)
+            interactionRange = (float)_cachedInteractionRangeField.GetValue(this);
         
         // Проходим по всем панелям и находим ближайшую
         foreach (PlacementPanel panel in allPanels)
@@ -548,14 +540,8 @@ public class PlacementPanel : InteractableObject
             }
         }
         
-        // Если не получилось, используем рефлексию для получения из базового класса
-        System.Reflection.FieldInfo playerTransformField = typeof(InteractableObject).GetField("playerTransform", 
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        if (playerTransformField != null)
-        {
-            return playerTransformField.GetValue(this) as Transform;
-        }
-        
+        if (_cachedPlayerTransformField != null)
+            return _cachedPlayerTransformField.GetValue(this) as Transform;
         return null;
     }
     
@@ -614,9 +600,11 @@ public class PlacementPanel : InteractableObject
         }
         else
         {
-            // Ищем размещённые brainrot объекты рядом с панелью
-            // ВАЖНО: Ищем только среди объектов, которые НЕ размещены на других панелях
-            // Это предотвращает конфликты, когда один объект может быть найден несколькими панелями
+            if (Time.time - _lastCheckPlacedBrainrotSearchTime < CHECK_PLACED_BRAINROT_SEARCH_INTERVAL)
+                return;
+            _lastCheckPlacedBrainrotSearchTime = Time.time;
+
+            // Ищем размещённые brainrot объекты рядом с панелью (не чаще раза в CHECK_PLACED_BRAINROT_SEARCH_INTERVAL)
             BrainrotObject[] allBrainrots = FindObjectsByType<BrainrotObject>(FindObjectsSortMode.None);
             Vector3 panelCenter = GetPlacementPosition();
             
@@ -675,13 +663,9 @@ public class PlacementPanel : InteractableObject
         // bounds.center всегда возвращает правильную мировую позицию независимо от масштаба родителя
         Vector3 correctPosition = panelCollider.bounds.center;
         
-        // Обновляем interactionPoint, если он существует
-        FieldInfo interactionPointField = typeof(InteractableObject).GetField("interactionPoint", 
-            BindingFlags.NonPublic | BindingFlags.Instance);
-        
-        if (interactionPointField != null)
+        if (_cachedInteractionPointField != null)
         {
-            Transform interactionPointTransform = interactionPointField.GetValue(this) as Transform;
+            Transform interactionPointTransform = _cachedInteractionPointField.GetValue(this) as Transform;
             if (interactionPointTransform != null)
             {
                 // Устанавливаем правильную мировую позицию
@@ -689,36 +673,17 @@ public class PlacementPanel : InteractableObject
             }
         }
         
-        // Обновляем cachedInteractionPosition через рефлексию
-        FieldInfo cachedPositionField = typeof(InteractableObject).GetField("cachedInteractionPosition", 
-            BindingFlags.NonPublic | BindingFlags.Instance);
-        
-        if (cachedPositionField != null)
+        if (_cachedCachedPositionField != null)
+            _cachedCachedPositionField.SetValue(this, correctPosition);
+
+        if (_cachedCurrentUIInstanceField != null)
         {
-            cachedPositionField.SetValue(this, correctPosition);
-        }
-        
-        // Также обновляем позицию UI напрямую, если он уже создан
-        // Это исправляет проблему, если UI был создан с неправильной позицией
-        FieldInfo currentUIInstanceField = typeof(InteractableObject).GetField("currentUIInstance", 
-            BindingFlags.NonPublic | BindingFlags.Instance);
-        
-        if (currentUIInstanceField != null)
-        {
-            GameObject currentUI = currentUIInstanceField.GetValue(this) as GameObject;
-            if (currentUI != null && currentUI.activeSelf)
+            GameObject currentUI = _cachedCurrentUIInstanceField.GetValue(this) as GameObject;
+            if (currentUI != null && currentUI.activeSelf && _cachedUIOffsetField != null)
             {
-                // Получаем uiOffset через рефлексию
-                FieldInfo uiOffsetField = typeof(InteractableObject).GetField("uiOffset", 
-                    BindingFlags.NonPublic | BindingFlags.Instance);
-                
-                if (uiOffsetField != null)
-                {
-                    Vector3 uiOffset = (Vector3)uiOffsetField.GetValue(this);
-                    // Вычисляем правильную позицию UI с учетом offset
-                    Vector3 uiPosition = correctPosition + uiOffset;
-                    currentUI.transform.position = uiPosition;
-                }
+                Vector3 uiOffset = (Vector3)_cachedUIOffsetField.GetValue(this);
+                Vector3 uiPosition = correctPosition + uiOffset;
+                currentUI.transform.position = uiPosition;
             }
         }
     }
@@ -1210,29 +1175,27 @@ public class PlacementPanel : InteractableObject
     /// </summary>
     public static bool IsBrainrotPlacedOnPanel(BrainrotObject brainrot)
     {
-        if (brainrot == null)
+        if (brainrot == null) return false;
+
+        if (_isPlacedCacheFrame != Time.frameCount)
         {
-            return false;
+            _isPlacedCacheFrame = Time.frameCount;
+            if (_isPlacedCache == null) _isPlacedCache = new System.Collections.Generic.Dictionary<BrainrotObject, bool>();
+            else _isPlacedCache.Clear();
         }
-        
-        // ВАЖНО: Проверяем ссылку на панели ПЕРЕД проверкой состояния
-        // Это позволяет определить размещение даже если состояние еще не обновлено
+        if (_isPlacedCache.TryGetValue(brainrot, out bool cached)) return cached;
+
+        bool result = false;
         foreach (PlacementPanel panel in allPanels)
         {
             if (panel != null && panel.placedBrainrot == brainrot)
             {
-                // Если объект найден в placedBrainrot, он размещен на панели
-                // Проверяем состояние только для дополнительной валидации
-                if (brainrot.IsPlaced() && !brainrot.IsCarried())
-            {
-                    return true;
-                }
-                // Даже если состояние еще не обновлено, но ссылка есть - считаем размещенным
-                return true;
+                result = true;
+                break;
             }
         }
-        
-        return false;
+        _isPlacedCache[brainrot] = result;
+        return result;
     }
     
     /// <summary>

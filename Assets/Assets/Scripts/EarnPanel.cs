@@ -90,7 +90,9 @@ public class EarnPanel : MonoBehaviour
     
     // Эффект накопления (FX_Shimmering_Yellow) — один экземпляр, включается/выключается
     private GameObject shimmerEffectInstance;
-    
+    private float _visualUpdateTimer;
+    private const float VISUAL_UPDATE_INTERVAL = 0.08f;
+
     private void Awake()
     {
         // Автоматически находим TextMeshPro компонент, если не назначен
@@ -221,21 +223,16 @@ public class EarnPanel : MonoBehaviour
         // Проверяем, находится ли игрок на панели
         CheckPlayerOnPanel();
         
-        // Обновляем текст баланса только если игрок не на панели и баланс изменился
-        if (!isPlayerOnPanel)
+        if (!isPlayerOnPanel && Mathf.Abs((float)(accumulatedBalance - lastAccumulatedBalance)) > 0.0001f)
+            UpdateMoneyText();
+
+        _visualUpdateTimer += Time.deltaTime;
+        if (_visualUpdateTimer >= VISUAL_UPDATE_INTERVAL)
         {
-            // Обновляем текст только при изменении баланса (оптимизация)
-            if (Mathf.Abs((float)(accumulatedBalance - lastAccumulatedBalance)) > 0.0001f)
-            {
-                UpdateMoneyText();
-            }
+            _visualUpdateTimer = 0f;
+            UpdateButtonVisual();
+            UpdateShimmerEffect();
         }
-        
-        // Обновляем визуальную обратную связь кнопки (цвет и позиция)
-        UpdateButtonVisual();
-        
-        // Показываем эффект FX_Shimmering_Yellow, если накоплено ≥ 20 сек дохода
-        UpdateShimmerEffect();
     }
     
     /// <summary>

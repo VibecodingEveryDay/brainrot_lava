@@ -93,6 +93,7 @@ public class BrainrotObject : InteractableObject
     private Rigidbody cachedRigidbody;
     private Collider[] cachedColliders;
     private bool componentsCached = false;
+    private static Transform _cachedPlayerTransform;
     
     // Оптимизация: флаг для отслеживания состояния UI
     private bool uiHiddenByCarry = false;
@@ -197,14 +198,18 @@ public class BrainrotObject : InteractableObject
             bool isPlacedOnPanel = PlacementPanel.IsBrainrotPlacedOnPanel(this);
             if (isPlacedOnPanel)
             {
-                // ВАЖНО: Инициализируем playerTransform, чтобы при взятии объекта из панели
-                // HandleInput() мог работать (playerTransform используется в блоке isCarried)
                 if (playerTransform == null)
                 {
-                    GameObject player = GameObject.FindGameObjectWithTag("Player");
-                    if (player != null)
+                    if (_cachedPlayerTransform != null)
+                        playerTransform = _cachedPlayerTransform;
+                    else
                     {
-                        playerTransform = player.transform;
+                        GameObject player = GameObject.FindGameObjectWithTag("Player");
+                        if (player != null)
+                        {
+                            _cachedPlayerTransform = player.transform;
+                            playerTransform = _cachedPlayerTransform;
+                        }
                     }
                 }
                 

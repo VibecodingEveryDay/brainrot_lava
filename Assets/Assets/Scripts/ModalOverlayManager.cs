@@ -23,7 +23,8 @@ public class ModalOverlayManager : MonoBehaviour
     
     private Canvas _canvas;
     private GameObject _overlayRoot;
-    
+    private bool _wasAnyOpen;
+
     private void Awake()
     {
         if (modalContainers == null || modalContainers.Length == 0)
@@ -90,18 +91,21 @@ public class ModalOverlayManager : MonoBehaviour
         }
         
         IsAnyModalOpen = anyOpen;
-        
+
         if (_overlayRoot != null)
         {
             if (anyOpen)
             {
-                _overlayRoot.transform.SetAsFirstSibling();
                 if (!_overlayRoot.activeSelf)
                     _overlayRoot.SetActive(true);
+                if (!_wasAnyOpen)
+                    _overlayRoot.transform.SetAsFirstSibling();
             }
             else if (_overlayRoot.activeSelf)
                 _overlayRoot.SetActive(false);
         }
+
+        _wasAnyOpen = anyOpen;
         
         if (overlayImage != null && overlayImage.color.a != overlayAlpha)
             overlayImage.color = new Color(0f, 0f, 0f, overlayAlpha);
