@@ -1,6 +1,8 @@
 using UnityEngine;
 using TMPro;
 using System.Collections;
+using System.Globalization;
+using System.Text.RegularExpressions;
 
 /// <summary>
 /// Компонент для отображения баланса игрока из GameStorage в TextMeshProUGUI
@@ -115,8 +117,8 @@ public class BalanceCountUI : MonoBehaviour
         // Получаем текущий баланс
         double currentBalance = gameStorage.GetBalanceDouble();
         
-        // Форматируем баланс через GameStorage
-        string formattedBalance = gameStorage.FormatBalance(currentBalance);
+        // Форматируем баланс через GameStorage и приводим к целому числу (без цифр после точки)
+        string formattedBalance = FormatBalanceInteger(gameStorage.FormatBalance(currentBalance));
         
         // Обновляем текст, если баланс или форматированная строка изменились
         // Используем сравнение форматированной строки для более надежной проверки
@@ -142,6 +144,23 @@ public class BalanceCountUI : MonoBehaviour
                 StartCoroutine(AnimateBalanceChange());
             }
         }
+    }
+    
+    /// <summary>
+    /// Приводит строку баланса к целому числу без цифр после точки (например, 1.3M → 1M).
+    /// </summary>
+    private static string FormatBalanceInteger(string formatted)
+    {
+        if (string.IsNullOrEmpty(formatted)) return formatted;
+        Match m = Regex.Match(formatted, @"^([\d.,]+)\s*(NO|OC|SP|SX|QI|QA|T|B|M|K)?$", RegexOptions.IgnoreCase);
+        if (!m.Success) return formatted;
+        string numPart = m.Groups[1].Value.Replace(",", ".");
+        string suffix = m.Groups[2].Success ? m.Groups[2].Value.ToUpperInvariant() : "";
+        if (!double.TryParse(numPart, NumberStyles.Float, CultureInfo.InvariantCulture, out double val))
+            return formatted;
+        long intVal = (long)System.Math.Round(val, 0);
+        if (intVal < 0) intVal = 0;
+        return intVal.ToString(CultureInfo.InvariantCulture) + suffix;
     }
     
     /// <summary>

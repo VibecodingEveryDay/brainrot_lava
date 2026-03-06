@@ -498,9 +498,14 @@ public class InteractableObject : MonoBehaviour
             }
         }
         
+        // СНАЧАЛА скрываем UI, если показывать не нужно (иначе на границе/при смене состояния UI мигает)
+        if (isPlayerInRange && currentUIInstance != null && !ShouldShowInteractionUI())
+        {
+            DestroyUI();
+        }
+        
         // Показываем UI при входе в радиус (если UI еще не создан или скрыт)
         // ВАЖНО: Если взаимодействие завершено, UI больше не показывается
-        // Наследники могут переопределить ShouldShowInteractionUI() (например, только ближайшая Cell)
         bool shouldCreateUI = isPlayerInRange && !interactionCompleted && ShouldShowInteractionUI();
         bool uiExistsButHidden = currentUIInstance != null && !currentUIInstance.activeSelf;
         
@@ -508,7 +513,6 @@ public class InteractableObject : MonoBehaviour
         {
             if (currentUIInstance == null)
             {
-                // UI не существует - создаем новый
                 if (debugMode)
                 {
                     Debug.Log($"[InteractableObject] {gameObject.name}: Условие для создания UI выполнено! Создаю UI...");
@@ -517,7 +521,6 @@ public class InteractableObject : MonoBehaviour
             }
             else if (uiExistsButHidden)
             {
-                // UI существует но скрыт - показываем его
                 ShowUI();
                 if (debugMode)
                 {
@@ -528,11 +531,6 @@ public class InteractableObject : MonoBehaviour
         else if (isPlayerInRange && currentUIInstance == null && interactionCompleted && debugMode)
         {
             Debug.Log($"[InteractableObject] {gameObject.name}: UI не создается - взаимодействие уже завершено");
-        }
-        // Если в радиусе, но показывать UI не нужно (например, не ближайшая Cell) — скрываем UI
-        if (isPlayerInRange && currentUIInstance != null && !ShouldShowInteractionUI())
-        {
-            DestroyUI();
         }
     }
     
@@ -1687,9 +1685,18 @@ public class InteractableObject : MonoBehaviour
     }
     
     /// <summary>
+    /// Текст кнопки взаимодействия для мобильного UI (например "Продать" / "Sell").
+    /// Если не null, InteractButton использует его вместо "Взять"/"Поставить".
+    /// </summary>
+    public virtual string GetInteractionButtonText()
+    {
+        return null;
+    }
+    
+    /// <summary>
     /// Проверяет, может ли игрок взаимодействовать с объектом (публичный метод)
     /// </summary>
-    public bool CanInteract()
+    public virtual bool CanInteract()
     {
         return isPlayerInRange && !interactionCompleted;
     }

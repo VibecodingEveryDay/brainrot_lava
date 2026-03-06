@@ -1154,53 +1154,35 @@ public class BalanceNotifyAnimation : MonoBehaviour
         if (value >= 1000000000) // >= 1B
         {
             double billions = value / 1000000000.0;
-            // Ограничиваем до 3 цифр: 1.24B, 10.5B, 999B
+            billions = Math.Round(billions, 1);
             if (billions >= 100)
-            {
                 result = $"{(int)billions}B";
-            }
-            else if (billions >= 10)
-            {
-                result = $"{billions:F1}B";
-            }
+            else if (billions == Math.Floor(billions))
+                result = $"{(long)billions}B";
             else
-            {
-                result = $"{billions:F2}B";
-            }
+                result = $"{billions.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)}B";
         }
         else if (value >= 1000000) // >= 1M
         {
             double millions = value / 1000000.0;
-            // Ограничиваем до 3 цифр: 1.24M, 10.5M, 999M
+            millions = Math.Round(millions, 1);
             if (millions >= 100)
-            {
                 result = $"{(int)millions}M";
-            }
-            else if (millions >= 10)
-            {
-                result = $"{millions:F1}M";
-            }
+            else if (millions == Math.Floor(millions))
+                result = $"{(long)millions}M";
             else
-            {
-                result = $"{millions:F2}M";
-            }
+                result = $"{millions.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)}M";
         }
         else if (value >= 1000) // >= 1K
         {
             double thousands = value / 1000.0;
-            // Ограничиваем до 3 цифр: 1.24K, 10.5K, 999K
+            thousands = Math.Round(thousands, 1);
             if (thousands >= 100)
-            {
                 result = $"{(int)thousands}K";
-            }
-            else if (thousands >= 10)
-            {
-                result = $"{thousands:F1}K";
-            }
+            else if (thousands == Math.Floor(thousands))
+                result = $"{(long)thousands}K";
             else
-            {
-                result = $"{thousands:F2}K";
-            }
+                result = $"{thousands.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)}K";
         }
         else
         {

@@ -24,6 +24,14 @@ public class ThirdPersonCamera : MonoBehaviour
     private float currentDistance; // Текущая интерполированная дистанция
     private ThirdPersonController playerController; // Кэшированная ссылка на контроллер игрока
     
+    [Header("Falling Camera Settings")]
+    [Tooltip("На сколько процентов отдалять камеру во время падения (от текущей дистанции). Например, 10 = +10%.")]
+    [SerializeField] private float fallCameraDistancePercent = 10f;
+    
+    [Header("Vertical Clamp")]
+    [Tooltip("Максимально допустимое значение, на которое камера может опуститься ниже точки CameraTarget по оси Y.")]
+    [SerializeField] private float maxCameraBelowTarget = 1.0f;
+    
     [Header("Mouse Settings")]
     [SerializeField] private float mouseSensitivity = 2f;
     [SerializeField] private bool invertY = false;
@@ -86,6 +94,11 @@ public class ThirdPersonCamera : MonoBehaviour
     {
         cam = GetComponent<Camera>();
         currentDistance = distance; // Инициализируем текущую дистанцию
+        // Гарантируем минимальную скорость интерполяции дистанции, чтобы отклик не был слишком медленным.
+        if (distanceTransitionSpeed < 0.1f)
+        {
+            distanceTransitionSpeed = 0.1f;
+        }
         
         // Автоматически найти Player, если не назначен
         if (target == null)
@@ -274,18 +287,46 @@ public class ThirdPersonCamera : MonoBehaviour
         
         if (playerController != null)
         {
-            // Проверяем, двигается ли игрок или прыгает
-            bool isMovingOrJumping = playerController.GetCurrentSpeed() > 0.1f || !playerController.IsGrounded();
-            
-            if (isMovingOrJumping)
+            // Состояния игрока
+            bool isGrounded = playerController.IsGrounded();
+            bool isMoving = playerController.GetCurrentSpeed() > 0.1f;
+            bool isFallingCam = playerController.IsFallingForCamera();
+            bool isModalOpen = ModalOverlayManager.IsAnyModalOpen;
+
+            // 1) Базовая дистанция
+            float baseDistance;
+
+            if (isModalOpen)
             {
-                targetDistance = distanceWhenMoving;
+                // При открытом модальном окне всегда немного дальше базовой камеры
+                baseDistance = distanceWhenMoving;
+            }
+            else if (isGrounded)
+            {
+                // На земле различаем idle и движение
+                baseDistance = isMoving ? distanceWhenMoving : distance;
+            }
+            else
+            {
+                // В воздухе (подъём/падение) базово используем дистанцию движения
+                baseDistance = distanceWhenMoving;
+            }
+
+            // 2) Бонус от падения (один раз поверх базы)
+            float fallMultiplier = 1f;
+            if (isFallingCam && fallCameraDistancePercent > 0f)
+            {
+                fallMultiplier = 1f + fallCameraDistancePercent / 100f;
+            }
+
+            targetDistance = baseDistance * fallMultiplier;
+
+            // 3) Дополнительный эффект модального окна (если нужно чуть сильнее отдалять)
+            if (isModalOpen)
+            {
+                targetDistance *= 1.25f;
             }
         }
-        
-        // При открытом модальном окне отдаляем камеру на 25%
-        if (ModalOverlayManager.IsAnyModalOpen)
-            targetDistance *= 1.25f;
         
         // Плавно интерполируем к целевой дистанции
         currentDistance = Mathf.Lerp(currentDistance, targetDistance, distanceTransitionSpeed * Time.deltaTime);
@@ -1196,6 +1237,19 @@ public class ThirdPersonCamera : MonoBehaviour
             {
                 // Если камера слишком близко, используем вычисленное направление
                 transform.position = targetCenter + direction * currentDistance;
+            }
+        }
+        
+        // Дополнительный вертикальный кламп: не позволяем камере опуститься
+        // ниже точки обзора (CameraTarget) больше, чем на maxCameraBelowTarget.
+        if (maxCameraBelowTarget > 0f)
+        {
+            float minY = targetCenter.y - maxCameraBelowTarget;
+            if (transform.position.y < minY)
+            {
+                Vector3 p = transform.position;
+                p.y = minY;
+                transform.position = p;
             }
         }
         

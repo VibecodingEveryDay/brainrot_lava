@@ -42,11 +42,17 @@ public class CameraCollisionHandler : MonoBehaviour
     [Tooltip("Плавность вертикальной позиции камеры по Y")]
     [SerializeField] private float verticalSmoothTime = 0.08f;
     
+    [Header("Collision Control")]
+    [Tooltip("Включать ли обработку столкновений камеры со стенами. Если выключено, камера только следует за ThirdPersonCamera.")]
+    [SerializeField] private bool enableCollisionHandling = false;
+    
     [Header("Debug")]
     [Tooltip("Показывать лучи в редакторе")]
     [SerializeField] private bool showDebugRays = false;
     
     private const string WallBallTag = "WallBall";
+    private const string StartFinishTag = "StartFinish";
+    private const string PlayerTag = "Player";
     
     // Текущее расстояние камеры (изменяется при столкновениях)
     private float currentDistance;
@@ -72,6 +78,8 @@ public class CameraCollisionHandler : MonoBehaviour
     
     // Ссылка на ThirdPersonCamera для получения стандартной дистанции
     private ThirdPersonCamera thirdPersonCamera;
+    // Ссылка на контроллер игрока, чтобы знать, когда он падает
+    private ThirdPersonController playerController;
     
     private void Awake()
     {
@@ -100,6 +108,9 @@ public class CameraCollisionHandler : MonoBehaviour
                     // Если CameraTarget не найден, используем сам Player
                     target = player.transform;
                 }
+
+                // Кэшируем контроллер игрока
+                playerController = player.GetComponent<ThirdPersonController>();
             }
         }
         
@@ -138,8 +149,15 @@ public class CameraCollisionHandler : MonoBehaviour
     
     private void LateUpdate()
     {
+        if (!enableCollisionHandling) return;
         if (target == null) return;
-        
+
+        // Во время падения не применяем коллизионную логику камеры,
+        // чтобы не перебивать преднамеренное отдаление камеры при падении.
+        if (playerController != null && playerController.IsFallingForCamera())
+        {
+            return;
+        }
         // ВАЖНО: ThirdPersonCamera уже установил позицию камеры в своем LateUpdate
         // Мы корректируем эту позицию, учитывая препятствия
         
@@ -183,7 +201,8 @@ public class CameraCollisionHandler : MonoBehaviour
             directionToTarget = -lastValidDirection;
         }
         
-        // При открытом модальном окне максимальная дистанция камеры +25%
+        // Максимальная дистанция для коллизий основана на собственном defaultDistance
+        // (не завязана напрямую на текущей дистанции ThirdPersonCamera, чтобы избежать циклов).
         float effectiveMaxDistance = defaultDistance * (ModalOverlayManager.IsAnyModalOpen ? 1.25f : 1f);
         
         float desiredDistance = CheckForObstacles(directionToTarget, effectiveMaxDistance);
@@ -252,7 +271,17 @@ public class CameraCollisionHandler : MonoBehaviour
         return maxDistance;
     }
     
-    private static bool IsWallBall(Collider c) => c != null && c.CompareTag(WallBallTag);
+    private static bool IsIgnoredObstacle(Collider c)
+    {
+        if (c == null) return true;
+        // Игнорируем специальные объекты, которые не должны влиять на позицию камеры
+        if (c.CompareTag(WallBallTag)) return true;
+        if (c.CompareTag(StartFinishTag)) return true;
+        // Игнорируем коллайдеры игрока и его дочерних объектов
+        Transform root = c.transform.root;
+        if (root != null && root.CompareTag(PlayerTag)) return true;
+        return false;
+    }
     
     private bool RaycastIgnoreWallBall(Vector3 origin, Vector3 direction, float maxDistance, out RaycastHit hit)
     {
@@ -261,7 +290,7 @@ public class CameraCollisionHandler : MonoBehaviour
         float bestDist = maxDistance + 1f;
         for (int i = 0; i < hits.Length; i++)
         {
-            if (hits[i].collider == null || IsWallBall(hits[i].collider)) continue;
+            if (IsIgnoredObstacle(hits[i].collider)) continue;
             if (hits[i].distance < bestDist) { bestDist = hits[i].distance; hit = hits[i]; }
         }
         return hit.collider != null;
@@ -274,7 +303,7 @@ public class CameraCollisionHandler : MonoBehaviour
         float bestDist = maxDistance + 1f;
         for (int i = 0; i < hits.Length; i++)
         {
-            if (hits[i].collider == null || IsWallBall(hits[i].collider)) continue;
+            if (IsIgnoredObstacle(hits[i].collider)) continue;
             if (hits[i].distance < bestDist) { bestDist = hits[i].distance; hit = hits[i]; }
         }
         return hit.collider != null;
@@ -324,7 +353,7 @@ public class CameraCollisionHandler : MonoBehaviour
         );
         int overlappingCount = 0;
         for (int o = 0; o < overlappingCollidersRaw.Length; o++)
-            if (!IsWallBall(overlappingCollidersRaw[o])) overlappingCount++;
+            if (!IsIgnoredObstacle(overlappingCollidersRaw[o])) overlappingCount++;
         bool isInsideObstacle = overlappingCount > 0;
         
         if (!isInsideObstacle)
@@ -546,7 +575,7 @@ public class CameraCollisionHandler : MonoBehaviour
             // Камера пересекается с чем-то - пробуем поднять её (игнорируем WallBall)
             foreach (Collider col in overlaps)
             {
-                if (IsWallBall(col)) continue;
+                if (IsIgnoredObstacle(col)) continue;
                 // ClosestPoint поддерживается только для Box, Sphere, Capsule и выпуклого MeshCollider
                 if (!IsClosestPointSupported(col))
                     continue;

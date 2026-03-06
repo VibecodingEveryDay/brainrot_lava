@@ -55,6 +55,13 @@ public class GradePanel : MonoBehaviour
     [Tooltip("Показывать отладочные сообщения в консоли")]
     [SerializeField] private bool debug = false;
     
+    [Header("Звук")]
+    [Tooltip("Звук, который проигрывается при успешном улучшении брейнрота")]
+    [SerializeField] private AudioClip upgradeSoundClip;
+    [Range(0f, 1f)]
+    [Tooltip("Громкость звука улучшения")]
+    [SerializeField] private float upgradeSoundVolume = 1f;
+    
     // Ссылка на связанную PlacementPanel
     private PlacementPanel linkedPlacementPanel;
     
@@ -76,6 +83,7 @@ public class GradePanel : MonoBehaviour
     private string _lastLevelLang = "";
     private Camera _cachedCamera;
     private Collider _cachedDetectionCollider;
+    private AudioSource audioSource;
 
     private void Awake()
     {
@@ -130,6 +138,15 @@ public class GradePanel : MonoBehaviour
         
         // Кэшируем все Collider компоненты для отключения взаимодействия (после EnsureRaycastCollider)
         colliders = GetComponentsInChildren<Collider>(true);
+
+        // Аудиоисточник для звука улучшения
+        audioSource = GetComponent<AudioSource>();
+        if (audioSource == null)
+        {
+            audioSource = gameObject.AddComponent<AudioSource>();
+            audioSource.playOnAwake = false;
+            audioSource.spatialBlend = 0f;
+        }
     }
     
     /// <summary>
@@ -621,6 +638,15 @@ public class GradePanel : MonoBehaviour
             
             // Создаём эффект улучшения
             SpawnUpgradeEffect();
+
+            // Проигрываем звук улучшения (новый звук прерывает старый)
+            if (upgradeSoundClip != null && audioSource != null)
+            {
+                audioSource.Stop();
+                audioSource.clip = upgradeSoundClip;
+                audioSource.volume = upgradeSoundVolume;
+                audioSource.Play();
+            }
             
             if (debug)
             {

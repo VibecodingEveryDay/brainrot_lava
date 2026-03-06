@@ -24,8 +24,19 @@ public class EarnPanel : MonoBehaviour
     [Tooltip("Эффект «золотого» накопления: показывается, когда накоплено ≥ 20 сек дохода. Префаб: BoldVFXPackDemo/Content/URP/Prefabs/FX_Shimmering_Yellow или Built-in")]
     [SerializeField] private GameObject shimmerEffectPrefab;
     
-    [Tooltip("Масштаб эффекта shimmer (FX_Shimmering_Yellow)")]
+    [Tooltip("Горизонтальный масштаб эффекта shimmer (FX_Shimmering_Yellow) по X и Z")]
     [SerializeField] private float shimmerEffectScale = 2.5f;
+    [Tooltip("Вертикальный масштаб эффекта shimmer (FX_Shimmering_Yellow) по Y")]
+    [SerializeField] private float shimmerEffectScaleY = 2.5f;
+    [Tooltip("Смещение эффекта shimmer по оси Y относительно центра панели")]
+    [SerializeField] private float shimmerEffectOffsetY = 1f;
+
+    [Header("Sound")]
+    [Tooltip("Звук, который проигрывается, когда игрок наступает на панель")]
+    [SerializeField] private AudioClip playerStepOnPanelClip;
+    [Range(0f, 1f)]
+    [Tooltip("Громкость звука наступания на панель")]
+    [SerializeField] private float playerStepOnPanelVolume = 1f;
     
     [Header("Настройки обнаружения игрока")]
     [Tooltip("Transform игрока (перетащите из иерархии)")]
@@ -33,6 +44,8 @@ public class EarnPanel : MonoBehaviour
     
     [Tooltip("Радиус обнаружения игрока (игрок считается на панели, если находится в этом радиусе)")]
     [SerializeField] private float detectionRadius = 2f;
+    [Tooltip("Половина высоты вертикального диапазона обнаружения игрока по оси Y (для разделения панелей по этажам)")]
+    [SerializeField] private float detectionHalfHeight = 1.5f;
     
     [Header("Визуальная обратная связь кнопки")]
     [Tooltip("Transform 3D кнопки для смещения по Y (если не назначен, используется текущий объект)")]
@@ -87,6 +100,9 @@ public class EarnPanel : MonoBehaviour
     private Vector3 originalTextWorldPos;
     private Material buttonMaterial;
     private float currentColorBlend = 0f;
+    private AudioSource audioSource;
+    private static float lastStepSoundTime = -999f;
+    private const float STEP_SOUND_MIN_INTERVAL = 0.05f;
     
     // Эффект накопления (FX_Shimmering_Yellow) — один экземпляр, включается/выключается
     private GameObject shimmerEffectInstance;
@@ -143,6 +159,15 @@ public class EarnPanel : MonoBehaviour
         originalButtonWorldPos = buttonT.position;
         if (moneyText != null)
             originalTextWorldPos = moneyText.transform.position;
+
+        // Аудиоисточник для звука наступания
+        audioSource = GetComponent<AudioSource>();
+        if (audioSource == null)
+        {
+            audioSource = gameObject.AddComponent<AudioSource>();
+            audioSource.playOnAwake = false;
+            audioSource.spatialBlend = 0f;
+        }
     }
     
     private void Start()
@@ -255,12 +280,13 @@ public class EarnPanel : MonoBehaviour
             {
                 shimmerEffectInstance = Instantiate(shimmerEffectPrefab, transform.position, Quaternion.identity);
                 shimmerEffectInstance.transform.SetParent(transform);
-                shimmerEffectInstance.transform.localPosition = Vector3.zero;
+                shimmerEffectInstance.transform.localPosition = new Vector3(0f, shimmerEffectOffsetY, 0f);
             }
             // Компенсируем масштаб родителя, чтобы мировой масштаб эффекта был равномерным (2.5, 2.5, 2.5)
             Vector3 parentScale = transform.lossyScale;
             float sx = Mathf.Abs(parentScale.x) > 0.001f ? shimmerEffectScale / parentScale.x : shimmerEffectScale;
-            float sy = Mathf.Abs(parentScale.y) > 0.001f ? shimmerEffectScale / parentScale.y : shimmerEffectScale;
+            float syScale = shimmerEffectScaleY > 0f ? shimmerEffectScaleY : shimmerEffectScale;
+            float sy = Mathf.Abs(parentScale.y) > 0.001f ? syScale / parentScale.y : syScale;
             float sz = Mathf.Abs(parentScale.z) > 0.001f ? shimmerEffectScale / parentScale.z : shimmerEffectScale;
             shimmerEffectInstance.transform.localScale = new Vector3(sx, sy, sz);
             if (!shimmerEffectInstance.activeInHierarchy)
@@ -322,17 +348,23 @@ public class EarnPanel : MonoBehaviour
         Vector3 panelPosition = transform.position;
         Vector3 playerPosition = playerTransform.position;
         
-        // Используем только горизонтальное расстояние (игнорируем высоту)
+        // 1) Горизонтальное расстояние (X,Z)
         Vector2 panelPos2D = new Vector2(panelPosition.x, panelPosition.z);
         Vector2 playerPos2D = new Vector2(playerPosition.x, playerPosition.z);
         float distance = Vector2.Distance(panelPos2D, playerPos2D);
         
+        // 2) Вертикальное расстояние (Y) для разделения панелей по этажам
+        float verticalDelta = Mathf.Abs(playerPosition.y - panelPosition.y);
+        
         bool wasOnPanel = isPlayerOnPanel;
-        isPlayerOnPanel = distance <= detectionRadius;
+        // Если detectionHalfHeight <= 0, вертикальная проверка отключена (поведение как раньше).
+        bool verticalOk = detectionHalfHeight <= 0.01f || verticalDelta <= detectionHalfHeight;
+        // Игрок «на панели», только если он в радиусе по XZ и (опционально) в допустимом диапазоне по высоте
+        isPlayerOnPanel = (distance <= detectionRadius) && verticalOk;
         
         if (debug && wasOnPanel != isPlayerOnPanel)
         {
-            Debug.Log($"[EarnPanel] Игрок {(isPlayerOnPanel ? "на" : "не на")} панели. Расстояние: {distance:F2}, Радиус: {detectionRadius}");
+            Debug.Log($"[EarnPanel] Игрок {(isPlayerOnPanel ? "на" : "не на")} панели. DistXZ={distance:F2}/{detectionRadius}, ΔY={verticalDelta:F2}/{detectionHalfHeight}");
         }
         
         // Если игрок только что наступил на панель, обнуляем баланс (один раз)
@@ -343,6 +375,16 @@ public class EarnPanel : MonoBehaviour
                 Debug.Log($"[EarnPanel] Игрок наступил на панель! Расстояние: {distance:F2}, накопленный баланс: {accumulatedBalance}");
             }
             CollectBalance();
+
+            // Проигрываем звук наступания на панель (не чаще одного раза в кадр/небольшой интервал для всех панелей)
+            if (playerStepOnPanelClip != null && audioSource != null)
+            {
+                if (Time.time - lastStepSoundTime >= STEP_SOUND_MIN_INTERVAL)
+                {
+                    audioSource.PlayOneShot(playerStepOnPanelClip, playerStepOnPanelVolume);
+                    lastStepSoundTime = Time.time;
+                }
+            }
         }
     }
     
@@ -525,23 +567,16 @@ public class EarnPanel : MonoBehaviour
     }
     
     /// <summary>
-    /// Вспомогательный метод для форматирования значения баланса
+    /// Вспомогательный метод для форматирования значения баланса. Максимум один знак после запятой.
     /// </summary>
     private string FormatBalanceValue(double value, string suffix)
     {
-        // Проверяем, является ли число целым
-        if (value == Mathf.Floor((float)value))
-        {
-            string formatted = $"{(long)value}{suffix}";
-            if (formatted.Length > 8) formatted = formatted.Substring(0, 8);
-            return formatted;
-        }
-        else
-        {
-            string formatted = $"{value:F2}{suffix}".TrimEnd('0').TrimEnd('.');
-            if (formatted.Length > 8) formatted = formatted.Substring(0, 8);
-            return formatted;
-        }
+        value = System.Math.Round(value, 1);
+        string formatted = value == System.Math.Floor(value)
+            ? $"{(long)value}{suffix}"
+            : $"{value.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)}{suffix}";
+        if (formatted.Length > 8) formatted = formatted.Substring(0, 8);
+        return formatted;
     }
     
     

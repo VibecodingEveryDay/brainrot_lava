@@ -150,7 +150,6 @@ public class InteractButton : MonoBehaviour, IPointerDownHandler, IPointerUpHand
         // чтобы не прервать процесс взаимодействия
         if (!isPressed)
         {
-            // Обновляем объект только если кнопка не зажата
             searchFrameCount++;
             if (searchFrameCount >= searchFrequency)
             {
@@ -327,18 +326,22 @@ public class InteractButton : MonoBehaviour, IPointerDownHandler, IPointerUpHand
                     continue;
                 }
                 
+                // Продажа — только через UI InteractableObject на плоскости, кнопку не показываем
+                if (obj is BrainrotSellPlane)
+                    continue;
+                
                 // Для BrainrotObject проверяем специальные состояния
                 BrainrotObject brainrotObj = obj as BrainrotObject;
-                bool isCarried = brainrotObj != null && brainrotObj.IsCarried();
+                // ВАЖНО: приоритет "в руках" только у брейнрота, который несёт ИГРОК, а не бот
+                bool isCarriedByPlayer = brainrotObj != null && brainrotObj.IsCarried() &&
+                    playerCarryController != null && playerCarryController.GetCurrentCarriedObject() == brainrotObj;
                 
-                // Для переносимого объекта всегда разрешаем взаимодействие (для "Поставить")
-                // Расстояние не проверяем для переносимых объектов - они всегда с игроком
-                if (isCarried)
+                // Для переносимого объекта (в руках игрока) всегда разрешаем взаимодействие (для "Поставить")
+                if (isCarriedByPlayer)
                 {
-                    // Для переносимого объекта всегда показываем кнопку
                     closestObject = obj;
-                    closestDistance = 0f; // Минимальное расстояние для переносимого объекта
-                    break; // Переносимый объект имеет приоритет - сразу выбираем его
+                    closestDistance = 0f;
+                    break;
                 }
                 
                 // ПРИОРИТЕТ 3: Ищем другие объекты по расстоянию и наличию UI
@@ -407,39 +410,25 @@ public class InteractButton : MonoBehaviour, IPointerDownHandler, IPointerUpHand
         // Кнопка должна быть видна только если:
         // 1. Это мобильное устройство
         // 2. Есть ближайший объект
-        // 3. Игрок может взаимодействовать с объектом ИЛИ объект переносится (для "Поставить")
-        // ВАЖНО: Когда текст "Take" (нет брейнрота в руках), НЕ показываем кнопку,
-        // так как взаимодействие теперь происходит через префаб Interaction
-        // Когда текст "Put" (есть брейнрот в руках), показываем кнопку как обычно
+        // 3. Для SellPlane — только при брейнроте в руках; для остальных — по CanInteract / перенос
         bool shouldShow = false;
         
         if (isMobileDevice && currentInteractableObject != null)
         {
-            // Проверяем, есть ли брейнрот в руках
             bool hasBrainrotInHands = playerCarryController != null && playerCarryController.GetCurrentCarriedObject() != null;
-            
-            // Для BrainrotObject проверяем, переносится ли он
             BrainrotObject brainrotObj = currentInteractableObject as BrainrotObject;
             bool isCarried = brainrotObj != null && brainrotObj.IsCarried();
             
             if (isCarried)
             {
-                // Если объект переносится, всегда показываем кнопку (для "Поставить")
                 shouldShow = true;
             }
             else
             {
-                // Если объект не переносится и нет брейнрота в руках (текст "Take"),
-                // НЕ показываем кнопку, так как взаимодействие через префаб Interaction
                 if (!hasBrainrotInHands)
-                {
                     shouldShow = false;
-                }
                 else
-                {
-                    // Если есть брейнрот в руках (текст "Put"), проверяем CanInteract()
                     shouldShow = currentInteractableObject.CanInteract();
-                }
             }
         }
         
@@ -527,9 +516,10 @@ public class InteractButton : MonoBehaviour, IPointerDownHandler, IPointerUpHand
             UpdateLocalizedTexts();
         }
         
-        // Текст: в руках брейнрот — "Поставить"; иначе — "Взять"
+        // Текст: кастомный от объекта (например "Продать"/"Sell") или в руках брейнрот — "Поставить"; иначе — "Взять"
+        string customText = currentInteractableObject != null ? currentInteractableObject.GetInteractionButtonText() : null;
         bool hasBrainrotInHands = playerCarryController != null && playerCarryController.GetCurrentCarriedObject() != null;
-        string newText = hasBrainrotInHands ? putText : defaultText;
+        string newText = !string.IsNullOrEmpty(customText) ? customText : (hasBrainrotInHands ? putText : defaultText);
         
         if (textTMP.text != newText)
             textTMP.text = newText;

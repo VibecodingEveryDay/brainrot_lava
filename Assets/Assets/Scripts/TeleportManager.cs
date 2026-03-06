@@ -85,6 +85,12 @@ public class TeleportManager : MonoBehaviour
     
     private static TeleportManager instance;
     
+    // Корутина для поэтапного респавна брейнротов, чтобы избежать микрофризов
+    private Coroutine brainrotRespawnCoroutine;
+    
+    // Корутина отложенного телепорта на базу (после удара мячом)
+    private Coroutine teleportToHouseAfterDelayCoroutine;
+    
     public static TeleportManager Instance
     {
         get
@@ -166,7 +172,7 @@ public class TeleportManager : MonoBehaviour
         SetNotificationAlpha(gotBrainrotText, 1f);
         StartNotificationPulse(gotBrainrotText.transform, cachedGotBrainrotTextBaseScale);
         StartNotificationHideAfterDelay(gotBrainrotText, cachedGotBrainrotTextBaseScale);
-        PlaneBrSpawner.RespawnAllSpawnersInScene();
+        StartBrainrotRespawnAsync();
     }
     
     /// <summary>
@@ -178,7 +184,7 @@ public class TeleportManager : MonoBehaviour
         ShowLoseText();
         RemoveCarriedBrainrot();
         DestroyAllBalls();
-        PlaneBrSpawner.RespawnAllSpawnersInScene();
+        StartBrainrotRespawnAsync();
         TeleportToHouse();
     }
 
@@ -207,7 +213,54 @@ public class TeleportManager : MonoBehaviour
         }
     }
     
-    private void ShowLoseText()
+    /// <summary>
+    /// Запускает поэтапный респавн всех брейнротов в сцене, чтобы не делать всю работу в один кадр.
+    /// </summary>
+    private void StartBrainrotRespawnAsync()
+    {
+        if (!gameObject.activeInHierarchy)
+        {
+            // На всякий случай активируем объект, чтобы корутина могла стартовать
+            gameObject.SetActive(true);
+        }
+        
+        if (brainrotRespawnCoroutine != null)
+        {
+            StopCoroutine(brainrotRespawnCoroutine);
+            brainrotRespawnCoroutine = null;
+        }
+        
+        brainrotRespawnCoroutine = StartCoroutine(RespawnAllBrainrotsGradually());
+    }
+    
+    /// <summary>
+    /// Корутина: респавнит брейнротов по одному спавнеру за кадр, уменьшая пиковую нагрузку.
+    /// </summary>
+    private IEnumerator RespawnAllBrainrotsGradually()
+    {
+        PlaneBrSpawner[] spawners = FindObjectsByType<PlaneBrSpawner>(FindObjectsSortMode.None);
+        for (int i = 0; i < spawners.Length; i++)
+        {
+            if (spawners[i] != null)
+            {
+                spawners[i].RespawnAll();
+            }
+            
+            // Ждём следующий кадр после обработки каждого спавнера,
+            // чтобы распределить Instantiate/Destroy по времени и избежать микрофриза.
+            yield return null;
+        }
+        
+        // Обновляем кэш направляющих после завершения респавна
+        Guide.InvalidateAllGuidesCache();
+        
+        brainrotRespawnCoroutine = null;
+    }
+    
+    /// <summary>
+    /// Показывает текст поражения (красный, с пульсом и автоскрытием). Публичный для вызова из Ball и др.
+    /// </summary>
+    public void ShowLoseText()
     {
         if (loseText == null) return;
         loseText.text = IsRussianLanguage() ? loseTextRu : loseTextEn;
@@ -299,7 +352,10 @@ public class TeleportManager : MonoBehaviour
         notificationHideCoroutine = null;
     }
     
-    private void RemoveCarriedBrainrot()
+    /// <summary>
+    /// Удаляет брейнрот из рук игрока (например, при ударе мячом). Публичный для вызова из Ball.
+    /// </summary>
+    public void RemoveCarriedBrainrot()
     {
         if (playerTransform == null) return;
         PlayerCarryController carry = playerTransform.GetComponent<PlayerCarryController>();
@@ -428,6 +484,24 @@ public class TeleportManager : MonoBehaviour
         }
         
         TeleportToPosition(housePos.position, housePos.rotation);
+    }
+    
+    /// <summary>
+    /// Через заданное количество секунд телепортирует игрока на базу (например, после удара мячом).
+    /// </summary>
+    public void TeleportPlayerToHouseAfterDelay(float seconds)
+    {
+        if (teleportToHouseAfterDelayCoroutine != null)
+            StopCoroutine(teleportToHouseAfterDelayCoroutine);
+        teleportToHouseAfterDelayCoroutine = StartCoroutine(TeleportToHouseAfterDelayCoroutine(seconds));
+    }
+    
+    private IEnumerator TeleportToHouseAfterDelayCoroutine(float seconds)
+    {
+        yield return new WaitForSeconds(seconds);
+        teleportToHouseAfterDelayCoroutine = null;
+        TeleportToHouse();
+        PlaneBrSpawner.RespawnAllSpawnersInScene();
     }
     
     /// <summary>

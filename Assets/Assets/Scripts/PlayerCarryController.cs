@@ -5,7 +5,7 @@ using UnityEngine;
 /// Управляет визуальным следованием объекта за игроком.
 /// </summary>
 [RequireComponent(typeof(ThirdPersonController))]
-public class PlayerCarryController : MonoBehaviour
+public class PlayerCarryController : MonoBehaviour, ICarryController
 {
     [Header("Настройки переноски")]
     [Tooltip("Смещение объекта относительно игрока (X, Y, Z)")]
@@ -156,6 +156,14 @@ public class PlayerCarryController : MonoBehaviour
             return;
         }
         
+        // ВАЖНО: снимаем этот брейнрот со всех ботов, иначе оба (игрок и бот) будут двигать один объект в LateUpdate
+        BotCarryController[] allBots = FindObjectsByType<BotCarryController>(FindObjectsSortMode.None);
+        for (int i = 0; i < allBots.Length; i++)
+        {
+            if (allBots[i] != null && allBots[i].GetCurrentCarriedObject() == obj)
+                allBots[i].DropObject();
+        }
+        
         currentCarriedObject = obj;
         
         // Сбрасываем кэш смещений для нового объекта
@@ -230,9 +238,17 @@ public class PlayerCarryController : MonoBehaviour
     }
     
     /// <summary>
-    /// Получить Transform игрока
+    /// Получить Transform игрока (носителя)
     /// </summary>
     public Transform GetPlayerTransform()
+    {
+        return playerTransform;
+    }
+
+    /// <summary>
+    /// Transform носителя для ICarryController
+    /// </summary>
+    public Transform GetCarrierTransform()
     {
         return playerTransform;
     }

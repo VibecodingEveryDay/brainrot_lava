@@ -10,11 +10,8 @@ public class MusicManager : MonoBehaviour
     public static MusicManager Instance { get; private set; }
     
     [Header("Music Clips")]
-    [Tooltip("Музыка для лобби/дома")]
+    [Tooltip("Музыка для лобби/дома (играет всегда по кругу)")]
     [SerializeField] private AudioClip lobbyMusic;
-    
-    [Tooltip("Музыка для боя")]
-    [SerializeField] private AudioClip fightMusic;
     
     [Header("Settings")]
     [Tooltip("Громкость музыки (0-1)")]
@@ -33,7 +30,6 @@ public class MusicManager : MonoBehaviour
     private bool isPlayingA = true;
     
     private Coroutine crossfadeCoroutine;
-    private Coroutine zoneSwitchCoroutine;
     
     private void Awake()
     {
@@ -57,46 +53,17 @@ public class MusicManager : MonoBehaviour
     
     private void Start()
     {
-        // Вне зоны — lobby, в зоне StartFinish — fight (переключает StartFinishZone)
+        // Всегда играем музыку лобби по кругу
         PlayLobbyMusic();
-        StartCoroutine(PreloadFightMusicCoroutine());
     }
     
     /// <summary>
-    /// Подгружает музыку боя при старте (прогрев на неактивном источнике), чтобы при первом входе в зону не было просадки FPS.
-    /// Ждём завершения crossfade lobby, чтобы не перезаписать играющий источник.
-    /// </summary>
-    private IEnumerator PreloadFightMusicCoroutine()
-    {
-        if (fightMusic == null) yield break;
-        yield return new WaitForSeconds(crossfadeDuration + 0.2f);
-        AudioSource inactive = isPlayingA ? audioSourceB : audioSourceA;
-        inactive.clip = fightMusic;
-        inactive.volume = 0f;
-        inactive.Play();
-        yield return null;
-        inactive.Pause();
-    }
-    
-    /// <summary>
-    /// Вызывается StartFinishZone: игрок вошёл (true) или вышел (false) из зоны боя.
-    /// Переключение отложено на следующий кадр, чтобы не вызывать просадку FPS в кадр входа в триггер.
+    /// Совместимость с существующим кодом: больше не переключает музыку,
+    /// так как бойовая музыка удалена. Метод оставлен пустым, чтобы не ломать вызовы.
     /// </summary>
     public void SetPlayerInFightZone(bool inZone)
     {
-        if (zoneSwitchCoroutine != null)
-            StopCoroutine(zoneSwitchCoroutine);
-        zoneSwitchCoroutine = StartCoroutine(SetZoneDelayedCoroutine(inZone));
-    }
-    
-    private IEnumerator SetZoneDelayedCoroutine(bool inZone)
-    {
-        yield return null;
-        if (inZone)
-            PlayFightMusic();
-        else
-            PlayLobbyMusic();
-        zoneSwitchCoroutine = null;
+        // Ничего не делаем: всегда играет только lobbyMusic
     }
     
     private void SetupAudioSource(AudioSource source)
@@ -115,17 +82,6 @@ public class MusicManager : MonoBehaviour
         if (lobbyMusic != null)
         {
             CrossfadeTo(lobbyMusic);
-        }
-    }
-    
-    /// <summary>
-    /// Воспроизводит музыку боя
-    /// </summary>
-    public void PlayFightMusic()
-    {
-        if (fightMusic != null)
-        {
-            CrossfadeTo(fightMusic);
         }
     }
     

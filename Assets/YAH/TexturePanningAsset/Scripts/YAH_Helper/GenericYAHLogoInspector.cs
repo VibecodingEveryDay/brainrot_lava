@@ -1,4 +1,4 @@
-﻿/* 
+/*
 * Created by You Are Here LLC, 2020
 * https://www.yahagency.com/
 *
@@ -6,6 +6,7 @@
 * pluginsupport@yahagency.com
 */
 
+#if UNITY_EDITOR
 using UnityEditor;
 using UnityEngine;
 
@@ -41,3 +42,4 @@ namespace com.yah.LineRendererDemo
         }
     }
 }
+#endif

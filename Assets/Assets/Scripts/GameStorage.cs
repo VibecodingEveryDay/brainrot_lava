@@ -380,81 +380,33 @@ public class GameStorage : MonoBehaviour
     }
     
     /// <summary>
-    /// Конвертирует double в баланс (value + scaler)
-    /// Использует округление для сохранения точности при малых значениях
+    /// Конвертирует double в баланс (value + scaler).
+    /// При дробной части в текущем масштабе использует меньший масштаб, чтобы не терять точность
+    /// (например 1.25M хранится как 1250K, иначе 4×250K давали бы 1M вместо 2M).
     /// </summary>
     private (int value, string scaler) ConvertDoubleToBalance(double balance)
     {
         if (balance <= 0)
-        {
             return (0, "");
-        }
-        
-        // Нониллионы (10^30)
-        if (balance >= 1000000000000000000000000000000.0)
+
+        const double epsilon = 1e-6;
+        double[] factors = {
+            1000000000000000000000000000000.0, 1000000000000000000000000000.0,
+            1000000000000000000000000.0, 1000000000000000000000.0, 1000000000000000000.0,
+            1000000000000000.0, 1000000000000.0, 1000000000.0, 1000000.0, 1000.0, 1.0
+        };
+        string[] scalers = { "NO", "OC", "SP", "SX", "QI", "QA", "T", "B", "M", "K", "" };
+
+        for (int i = 0; i < factors.Length; i++)
         {
-            double nonillions = balance / 1000000000000000000000000000000.0;
-            return ((int)Math.Round(nonillions), "NO");
+            if (balance < factors[i])
+                continue;
+            double val = balance / factors[i];
+            double rounded = Math.Round(val, 0);
+            if (Math.Abs(val - rounded) <= epsilon)
+                return ((int)rounded, scalers[i]);
         }
-        // Октиллионы (10^27)
-        else if (balance >= 1000000000000000000000000000.0)
-        {
-            double octillions = balance / 1000000000000000000000000000.0;
-            return ((int)Math.Round(octillions), "OC");
-        }
-        // Септиллионы (10^24)
-        else if (balance >= 1000000000000000000000000.0)
-        {
-            double septillions = balance / 1000000000000000000000000.0;
-            return ((int)Math.Round(septillions), "SP");
-        }
-        // Секстиллионы (10^21)
-        else if (balance >= 1000000000000000000000.0)
-        {
-            double sextillions = balance / 1000000000000000000000.0;
-            return ((int)Math.Round(sextillions), "SX");
-        }
-        // Квинтиллионы (10^18)
-        else if (balance >= 1000000000000000000.0)
-        {
-            double quintillions = balance / 1000000000000000000.0;
-            return ((int)Math.Round(quintillions), "QI");
-        }
-        // Квадриллионы (10^15)
-        else if (balance >= 1000000000000000.0)
-        {
-            double quadrillions = balance / 1000000000000000.0;
-            return ((int)Math.Round(quadrillions), "QA");
-        }
-        // Триллионы (10^12)
-        else if (balance >= 1000000000000.0)
-        {
-            double trillions = balance / 1000000000000.0;
-            return ((int)Math.Round(trillions), "T");
-        }
-        // Миллиарды (10^9)
-        else if (balance >= 1000000000.0)
-        {
-            double billions = balance / 1000000000.0;
-            return ((int)Math.Round(billions), "B");
-        }
-        // Миллионы (10^6)
-        else if (balance >= 1000000.0)
-        {
-            double millions = balance / 1000000.0;
-            return ((int)Math.Round(millions), "M");
-        }
-        // Тысячи (10^3)
-        else if (balance >= 1000.0)
-        {
-            double thousands = balance / 1000.0;
-            return ((int)Math.Round(thousands), "K");
-        }
-        else
-        {
-            // Меньше тысячи - просто число
-            return ((int)Math.Round(balance), "");
-        }
+        return (balance < 0.5 ? (0, "") : (1, ""));
     }
     
     /// <summary>
@@ -544,23 +496,15 @@ public class GameStorage : MonoBehaviour
     }
     
     /// <summary>
-    /// Вспомогательный метод для форматирования значения баланса
-    /// Целые числа отображаются без десятичных знаков
+    /// Вспомогательный метод для форматирования значения баланса.
+    /// Максимум один знак после запятой; целые — без точки.
     /// </summary>
     private string FormatBalanceValue(double value, string suffix)
     {
-        // Проверяем, является ли число целым
-        if (value == Mathf.Floor((float)value))
-        {
-            // Целое число - без десятичных знаков
+        value = Math.Round(value, 1);
+        if (value == Math.Floor(value))
             return $"{(long)value}{suffix}";
-        }
-        else
-        {
-            // Дробное число - с десятичными знаками (убираем лишние нули)
-            string formatted = $"{value:F2}{suffix}".TrimEnd('0').TrimEnd('.');
-            return formatted;
-        }
+        return $"{value.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)}{suffix}";
     }
     
     #endregion

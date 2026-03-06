@@ -22,6 +22,19 @@ public class StartFinishZone : MonoBehaviour
             return;
         }
 
+        if (other.CompareTag("Bot"))
+        {
+            BotCarryController botCarry = other.GetComponent<BotCarryController>();
+            if (botCarry == null) botCarry = other.GetComponentInParent<BotCarryController>();
+            if (botCarry != null && botCarry.GetCurrentCarriedObject() != null)
+            {
+                BrainrotObject br = botCarry.GetCurrentCarriedObject();
+                Destroy(br.gameObject);
+                Destroy(botCarry.GetCarrierTransform().gameObject);
+            }
+            return;
+        }
+
         if (!other.CompareTag(playerTag)) return;
 
         if (TeleportManager.Instance != null)

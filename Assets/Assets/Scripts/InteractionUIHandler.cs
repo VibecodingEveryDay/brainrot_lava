@@ -26,8 +26,11 @@ public class InteractionUIHandler : MonoBehaviour, IPointerDownHandler, IPointer
     private float currentHoldTime = 0f;
     private bool interactionCompleted = false;
     private float lastPointerDownTime = -1f; // Время последнего вызова OnPointerDown
-    private const float POINTER_DOWN_COOLDOWN = 0.1f; // Защита от двойного вызова (100ms)
+    private const float POINTER_DOWN_COOLDOWN = 0.03f; // Защита от двойного вызова (30ms), не блокирует первый клик
     private Camera _cachedMainCamera;
+    private bool receivedPointerDownThisFrame;
+    private bool hadPointerDownThisFrame;
+    private Vector2 lastPointerPositionForFallback;
     
     private void Awake()
     {
@@ -89,6 +92,12 @@ public class InteractionUIHandler : MonoBehaviour, IPointerDownHandler, IPointer
     
     private void Update()
     {
+        receivedPointerDownThisFrame = false;
+        hadPointerDownThisFrame = false;
+        
+        if (parentInteractableObject == null)
+            FindParentInteractableObject();
+        
         // Обрабатываем прогресс при зажатии
         if (isPressed)
         {
@@ -175,51 +184,103 @@ public class InteractionUIHandler : MonoBehaviour, IPointerDownHandler, IPointer
     {
         if (parentInteractableObject == null) return;
         
-        bool mouseButtonDown = false;
-        bool mouseButtonUp = false;
-        bool mouseButtonHeld = false;
+        // Унифицированные флаги "указателя" (мышь или тап)
+        bool pointerDown = false;
+        bool pointerUp = false;
+        bool pointerHeld = false;
+        bool hasPointer = false;
+        Vector2 pointerPosition = Vector2.zero;
         
 #if ENABLE_INPUT_SYSTEM
+        // Мышь (Desktop)
         if (Mouse.current != null)
         {
-            mouseButtonDown = Mouse.current.leftButton.wasPressedThisFrame;
-            mouseButtonUp = Mouse.current.leftButton.wasReleasedThisFrame;
-            mouseButtonHeld = Mouse.current.leftButton.isPressed;
+            pointerDown = Mouse.current.leftButton.wasPressedThisFrame;
+            pointerUp = Mouse.current.leftButton.wasReleasedThisFrame;
+            pointerHeld = Mouse.current.leftButton.isPressed;
+            pointerPosition = Mouse.current.position.ReadValue();
+            hasPointer = true;
+        }
+        // Touch (мобильные устройства) через новый Input System
+        if (Touchscreen.current != null && Touchscreen.current.touches.Count > 0)
+        {
+            // Берём первый активный тап
+            var touch = Touchscreen.current.touches[0];
+            pointerPosition = touch.position.ReadValue();
+            hasPointer = true;
+            
+            if (touch.press.wasPressedThisFrame)
+            {
+                pointerDown = true;
+                pointerHeld = true;
+            }
+            else if (touch.press.wasReleasedThisFrame)
+            {
+                pointerUp = true;
+            }
+            else if (touch.press.isPressed)
+            {
+                pointerHeld = true;
+            }
         }
 #else
-        mouseButtonDown = Input.GetMouseButtonDown(0);
-        mouseButtonUp = Input.GetMouseButtonUp(0);
-        mouseButtonHeld = Input.GetMouseButton(0);
+        // Desktop мышь
+        if (Input.mousePresent)
+        {
+            pointerDown = Input.GetMouseButtonDown(0);
+            pointerUp = Input.GetMouseButtonUp(0);
+            pointerHeld = Input.GetMouseButton(0);
+            pointerPosition = Input.mousePosition;
+            hasPointer = true;
+        }
+        
+        // Touch (мобильные устройства, включая симулятор)
+        if (Input.touchSupported && Input.touchCount > 0)
+        {
+            Touch touch = Input.GetTouch(0);
+            pointerPosition = touch.position;
+            hasPointer = true;
+            
+            switch (touch.phase)
+            {
+                case TouchPhase.Began:
+                    pointerDown = true;
+                    pointerHeld = true;
+                    break;
+                case TouchPhase.Moved:
+                case TouchPhase.Stationary:
+                    pointerHeld = true;
+                    break;
+                case TouchPhase.Ended:
+                case TouchPhase.Canceled:
+                    pointerUp = true;
+                    break;
+            }
+        }
 #endif
+        
+        if (!hasPointer)
+            return;
         
         // ВАЖНО: Используем fallback только если стандартные события UI не работают
         // Проверяем, было ли событие OnPointerDown вызвано через стандартный механизм
         // Если да, то не используем fallback для mouseButtonDown
         
-        // Проверяем, попадает ли клик в UI элемент
-        if (mouseButtonDown && !isPressed)
+        // Проверяем, попадает ли клик/тап в UI элемент
+        if (pointerDown && !isPressed)
         {
-            // Используем fallback только если стандартные события UI не сработали
-            // Проверяем, что прошло достаточно времени с последнего вызова OnPointerDown
-            // чтобы избежать двойного вызова
-            float timeSinceLastPointerDown = Time.time - lastPointerDownTime;
-            if (timeSinceLastPointerDown > POINTER_DOWN_COOLDOWN)
+            hadPointerDownThisFrame = true;
+            lastPointerPositionForFallback = pointerPosition;
+            float timeSinceLastPointerDown = lastPointerDownTime < 0 ? 999f : (Time.time - lastPointerDownTime);
+            bool cooldownOk = timeSinceLastPointerDown > POINTER_DOWN_COOLDOWN;
+            if (cooldownOk && IsPointerOverUI(pointerPosition) && parentInteractableObject.CanInteract())
             {
-                if (IsPointerOverUI() && parentInteractableObject.CanInteract())
-                {
-                    if (debugMode)
-                    {
-                        Debug.Log($"[InteractionUIHandler] HandleDirectInput: клик обнаружен через fallback");
-                    }
-                    OnPointerDown(null);
-                }
-            }
-            else if (debugMode)
-            {
-                Debug.Log($"[InteractionUIHandler] HandleDirectInput: игнорируем клик, прошло только {timeSinceLastPointerDown:F3}s с последнего OnPointerDown");
+                if (debugMode)
+                    Debug.Log($"[InteractionUIHandler] HandleDirectInput: клик/тап через fallback");
+                OnPointerDown(null);
             }
         }
-        else if (mouseButtonUp && isPressed)
+        else if (pointerUp && isPressed)
         {
             // Кнопка отпущена - вызываем OnPointerUp только если кнопка действительно была отпущена
             // ВАЖНО: Проверяем, что прошло достаточно времени с OnPointerDown, чтобы избежать
@@ -238,7 +299,7 @@ public class InteractionUIHandler : MonoBehaviour, IPointerDownHandler, IPointer
                 Debug.Log($"[InteractionUIHandler] HandleDirectInput: игнорируем OnPointerUp, прошло только {timeSinceLastPointerDown:F3}s с OnPointerDown");
             }
         }
-        else if (mouseButtonHeld && isPressed)
+        else if (pointerHeld && isPressed)
         {
             // Продолжаем взаимодействие - НЕ проверяем IsPointerOverUI() каждый кадр,
             // так как это может вызвать ложные срабатывания при первом клике
@@ -246,7 +307,7 @@ public class InteractionUIHandler : MonoBehaviour, IPointerDownHandler, IPointer
             // НЕ вызываем OnPointerUp() здесь, даже если курсор ушел с UI элемента,
             // так как это может прервать взаимодействие при первом клике
         }
-        else if (!mouseButtonHeld && isPressed && wasMouseButtonHeldLastFrame)
+        else if (!pointerHeld && isPressed && wasMouseButtonHeldLastFrame)
         {
             // Кнопка была зажата в предыдущем кадре, но теперь не зажата
             // Это означает, что кнопка была отпущена, но событие OnPointerUp не было вызвано
@@ -257,14 +318,24 @@ public class InteractionUIHandler : MonoBehaviour, IPointerDownHandler, IPointer
             OnPointerUp(null);
         }
         
-        // Сохраняем состояние для следующего кадра
-        wasMouseButtonHeldLastFrame = mouseButtonHeld;
+        wasMouseButtonHeldLastFrame = pointerHeld;
+    }
+    
+    private void LateUpdate()
+    {
+        if (!hadPointerDownThisFrame || isPressed) return;
+        if (parentInteractableObject == null) return;
+        if (receivedPointerDownThisFrame) return;
+        if (!IsPointerOverUI(lastPointerPositionForFallback) || !parentInteractableObject.CanInteract()) return;
+        if (debugMode)
+            Debug.Log($"[InteractionUIHandler] LateUpdate: клик не дошёл по EventSystem, обрабатываем fallback");
+        OnPointerDown(null);
     }
     
     /// <summary>
     /// Проверяет, находится ли указатель мыши над UI элементом
     /// </summary>
-    private bool IsPointerOverUI()
+    private bool IsPointerOverUI(Vector2 screenPosition)
     {
         if (EventSystem.current == null)
         {
@@ -276,18 +347,7 @@ public class InteractionUIHandler : MonoBehaviour, IPointerDownHandler, IPointer
         }
         
         PointerEventData pointerEventData = new PointerEventData(EventSystem.current);
-#if ENABLE_INPUT_SYSTEM
-        if (Mouse.current != null)
-        {
-            pointerEventData.position = Mouse.current.position.ReadValue();
-        }
-        else
-        {
-            return false;
-        }
-#else
-        pointerEventData.position = Input.mousePosition;
-#endif
+        pointerEventData.position = screenPosition;
         
         var results = new List<RaycastResult>();
         EventSystem.current.RaycastAll(pointerEventData, results);
@@ -315,7 +375,7 @@ public class InteractionUIHandler : MonoBehaviour, IPointerDownHandler, IPointer
         Camera mainCamera = _cachedMainCamera;
         if (mainCamera != null)
         {
-            Ray ray = mainCamera.ScreenPointToRay(pointerEventData.position);
+            Ray ray = mainCamera.ScreenPointToRay(screenPosition);
             RaycastHit hit;
             
             // Проверяем, попадает ли луч в наш UI элемент
@@ -564,7 +624,8 @@ public class InteractionUIHandler : MonoBehaviour, IPointerDownHandler, IPointer
         isPressed = true;
         interactionCompleted = false;
         currentHoldTime = 0f;
-        lastPointerDownTime = Time.time; // Сохраняем время вызова
+        lastPointerDownTime = Time.time;
+        receivedPointerDownThisFrame = true;
         
         // Устанавливаем флаг, что кнопка зажата (для HandleDirectInput)
         wasMouseButtonHeldLastFrame = true;

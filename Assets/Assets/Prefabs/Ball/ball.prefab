@@ -158,3 +158,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Ball
   playerTag: Player
+  hitPlayerClip: {fileID: 8300000, guid: 0c5bce131787ebb48beea00d08f65210, type: 3}
+  hitPlayerVolume: 0.405
+  playerPushForce: 900
+  botDestroyDelay: 1

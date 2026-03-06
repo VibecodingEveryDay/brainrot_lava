@@ -301,6 +301,12 @@ public class BrainrotObject : InteractableObject
         
         if (isCarried)
         {
+            // ВАЖНО: обрабатываем только брейнрот в руках ИГРОКА; если несёт бот — не трогаем (иначе телепорт к игроку)
+            if (playerCarryController != null && playerCarryController.GetCurrentCarriedObject() != this)
+            {
+                ResetInteraction();
+                return;
+            }
             // ВАЖНО: Если объект только что взят с панели — не ставить на пол (взаимодействие уже обработано панелью)
             if (justTakenFromPanel)
             {
@@ -431,6 +437,46 @@ public class BrainrotObject : InteractableObject
         onTake.Invoke();
         
         Debug.Log($"[BrainrotObject] {objectName}: Объект взят игроком");
+    }
+    
+    /// <summary>
+    /// Взять объект в руки переданным носителем (бот или игрок через ICarryController).
+    /// </summary>
+    public void TakeBy(ICarryController carrier)
+    {
+        if (carrier == null)
+        {
+            Debug.LogWarning($"[BrainrotObject] {objectName}: TakeBy — carrier == null!");
+            return;
+        }
+        if (!carrier.CanCarry())
+        {
+            Debug.Log($"[BrainrotObject] {objectName}: Носитель уже несёт другой объект!");
+            return;
+        }
+        
+        if (!componentsCached)
+            CacheComponents();
+        
+        isCarried = true;
+        isPlaced = false;
+        
+        if (cachedRigidbody != null)
+            cachedRigidbody.isKinematic = true;
+        
+        if (cachedColliders != null)
+        {
+            for (int i = 0; i < cachedColliders.Length; i++)
+            {
+                if (cachedColliders[i] != null)
+                    cachedColliders[i].enabled = false;
+            }
+        }
+        
+        carrier.CarryObject(this);
+        HideUI();
+        uiHiddenByCarry = true;
+        onTake.Invoke();
     }
     
     /// <summary>

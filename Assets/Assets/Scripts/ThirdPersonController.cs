@@ -24,6 +24,8 @@ public class ThirdPersonController : MonoBehaviour
     [Header("Debug")]
     [Tooltip("Показывать отладочные сообщения о скорости")]
     [SerializeField] private bool debugSpeed = false;
+    [Tooltip("Включить визуальную отладку падения (grounded, velocity.y, таймер и флаги падения)")]
+    [SerializeField] private bool fallDebug = false;
     
     private float moveSpeed; // Вычисляемая скорость (может изменяться на основе уровня)
     
@@ -56,11 +58,24 @@ public class ThirdPersonController : MonoBehaviour
     [Header("Jump Rotation")]
     [SerializeField] private float jumpRotationAngle = 10f; // Угол поворота модели при прыжке
     
+    [Header("Knockback (отталкивание мячом)")]
+    [Tooltip("Скорость затухания отталкивания (чем больше — тем быстрее игрок останавливается после толчка)")]
+    [SerializeField] private float knockbackDecay = 5f;
+    
+    [Header("Falling Speed Boost")]
+    [Tooltip("Через сколько миллисекунд непрерывного нахождения в воздухе считать состояние падением (по умолчанию 700 мс).")]
+    [SerializeField] private float fallDetectionTimeMs = 700f;
+    [Tooltip("На сколько процентов увеличить горизонтальную скорость во время падения (к концу ускорения). Например, 30 = +30%.")]
+    [SerializeField] private float fallSpeedBoostPercent = 30f;
+    [Tooltip("За сколько секунд при непрерывном падении скорость дорастёт до полного буста (по умолчанию 3 секунды).")]
+    [SerializeField] private float fallSpeedBoostDuration = 3f;
+    
     
     private CharacterController characterController;
     private Vector3 velocity;
     private bool isGrounded;
     private bool isActuallyGrounded; // Реальное состояние контакта с землёй (без буфера)
+    private bool isGroundedForAnimation; // Более «быстрая» приземлённость только для анимации
     private float lastGroundedTime; // Время последнего контакта с землёй
     private int groundedFalseFrameCount; // Подряд кадров без контакта (для гистерезиса)
     private float currentSpeed;
@@ -70,6 +85,11 @@ public class ThirdPersonController : MonoBehaviour
     private bool isJumping = false; // Флаг прыжка для поворота модели
     private Quaternion savedModelRotation; // Сохраненный поворот модели перед прыжком
     
+    // Падение
+    private bool isFalling = false;
+    private float fallTime = 0f;
+    private float ungroundedTimeMs = 0f;
+    
     // Ввод от джойстика (для мобильных устройств)
     private Vector2 joystickInput = Vector2.zero;
     
@@ -78,6 +98,11 @@ public class ThirdPersonController : MonoBehaviour
     
     // Флаг готовности игры (блокирует управление до инициализации GameReady)
     private bool isGameReady = false;
+    // Запущен ли таймаут ожидания GameReady
+    private bool gameReadyTimeoutStarted = false;
+    
+    // Отталкивание (мяч и т.п.)
+    private Vector3 knockbackVelocity = Vector3.zero;
     
     // Лестница
     private bool isOnLadder = false;
@@ -210,11 +235,18 @@ public class ThirdPersonController : MonoBehaviour
                 isGameReady = true;
                 Debug.Log("[ThirdPersonController] GameReady инициализирован, управление разблокировано");
             }
+            else if (!gameReadyDone && !gameReadyTimeoutStarted)
+            {
+                // Запускаем таймаут, если SDK ещё не успел выставить флаг
+                StartCoroutine(CheckGameReadyDelayed());
+                gameReadyTimeoutStarted = true;
+            }
         }
-        else
+        else if (!gameReadyTimeoutStarted)
         {
             // Если рефлексия не работает, проверяем через задержку (fallback)
             StartCoroutine(CheckGameReadyDelayed());
+            gameReadyTimeoutStarted = true;
         }
 #else
         // Если YG2 не используется, сразу разблокируем управление
@@ -265,8 +297,10 @@ public class ThirdPersonController : MonoBehaviour
             CheckGameReady();
         }
         
-        // Сначала применяем движение, затем проверяем землю — так isGrounded ставится в тот же кадр, что и приземление (не с задержкой в кадр).
+        // Сначала применяем гравитацию, обновляем состояние падения и движение,
+        // затем проверяем землю — так isGrounded ставится в тот же кадр, что и приземление (не с задержкой в кадр).
         ApplyGravity();
+        UpdateFallingState();
         HandleMovement();
         HandleGroundCheck();
         HandleJump();
@@ -348,6 +382,17 @@ public class ThirdPersonController : MonoBehaviour
             groundedFalseFrameCount = 0;
         }
         
+        // Отдельный более «агрессивный» флаг приземлённости только для анимации:
+        // используем мгновенный реальный контакт без буфера, чтобы убрать задержку между приземлением и переходом в бег.
+        if (isOnLadder)
+        {
+            isGroundedForAnimation = true;
+        }
+        else
+        {
+            isGroundedForAnimation = isActuallyGrounded && velocity.y <= 0.1f;
+        }
+        
         if (isGrounded && velocity.y < 0)
         {
             velocity.y = -2f;
@@ -427,8 +472,17 @@ public class ThirdPersonController : MonoBehaviour
             moveDirection = new Vector3(horizontal, 0f, vertical).normalized;
         }
         
-        // Вычисляем скорость движения
-        currentSpeed = moveDirection.magnitude * moveSpeed;
+        // Вычисляем эффективную скорость движения (с учётом ускорения при падении)
+        float effectiveMoveSpeed = moveSpeed;
+        if (isFalling && fallSpeedBoostDuration > 0f && fallSpeedBoostPercent > 0f)
+        {
+            float t = Mathf.Clamp01(fallTime / fallSpeedBoostDuration);
+            float boostMultiplier = 1f + (fallSpeedBoostPercent / 100f) * t;
+            effectiveMoveSpeed = moveSpeed * boostMultiplier;
+        }
+        
+        // Вычисляем скорость движения для аниматора
+        currentSpeed = moveDirection.magnitude * effectiveMoveSpeed;
         
         // Применяем движение через CharacterController
         if (moveDirection.magnitude > 0.1f)
@@ -436,7 +490,7 @@ public class ThirdPersonController : MonoBehaviour
             // Движение - проверяем, что CharacterController активен перед вызовом Move
             if (characterController != null && characterController.enabled)
             {
-            characterController.Move(moveDirection * moveSpeed * Time.deltaTime);
+                characterController.Move(moveDirection * effectiveMoveSpeed * Time.deltaTime);
             }
             
             // Плавный поворот корневого объекта в сторону движения
@@ -564,6 +618,57 @@ public class ThirdPersonController : MonoBehaviour
         
         // Применяем вертикальное движение
         characterController.Move(velocity * Time.deltaTime);
+        
+        // Применяем отталкивание (мяч) и затухание
+        if (knockbackVelocity.sqrMagnitude > 0.01f)
+        {
+            characterController.Move(knockbackVelocity * Time.deltaTime);
+            knockbackVelocity = Vector3.Lerp(knockbackVelocity, Vector3.zero, knockbackDecay * Time.deltaTime);
+        }
+    }
+    
+    /// <summary>
+    /// Обновляет состояние падения и таймер ускорения во время падения.
+    /// </summary>
+    private void UpdateFallingState()
+    {
+        bool wasFalling = isFalling;
+        
+        // Время, пока персонаж находится не на земле (и не на лестнице)
+        bool inAir = !isGrounded && !isOnLadder;
+        
+        if (inAir)
+        {
+            ungroundedTimeMs += Time.deltaTime * 1000f;
+        }
+        else
+        {
+            ungroundedTimeMs = 0f;
+        }
+        
+        // Считаем, что персонаж "падает", если он в воздухе дольше порогового времени
+        bool fallingNow = inAir && ungroundedTimeMs >= fallDetectionTimeMs;
+        
+        if (fallingNow)
+        {
+            fallTime += Time.deltaTime;
+            if (fallTime > fallSpeedBoostDuration && fallSpeedBoostDuration > 0f)
+            {
+                fallTime = fallSpeedBoostDuration;
+            }
+        }
+        else
+        {
+            fallTime = 0f;
+        }
+        
+        isFalling = fallingNow;
+        
+        // Логируем момент инициализации падения (переход false -> true)
+        if (!wasFalling && isFalling)
+        {
+            Debug.Log($"[ThirdPersonController][FallDebug] Падение инициализировано: pos={transform.position}, vY={velocity.y:F3}, ungroundedMs={ungroundedTimeMs:F1}");
+        }
     }
     
     /// <summary>
@@ -727,8 +832,8 @@ public class ThirdPersonController : MonoBehaviour
             // Обновляем параметр Speed
             animator.SetFloat(SpeedHash, currentSpeed);
             
-            // Обновляем параметр isGrounded в аниматоре (напрямую, без заглушек)
-            animator.SetBool(IsGroundedHash, isGrounded);
+            // Обновляем параметр isGrounded в аниматоре, используя более быстрый флаг для визуального приземления
+            animator.SetBool(IsGroundedHash, isGroundedForAnimation);
         }
     }
     
@@ -749,6 +854,20 @@ public class ThirdPersonController : MonoBehaviour
         return isGrounded;
     }
     
+    public bool IsFalling()
+    {
+        return isFalling;
+    }
+    
+    /// <summary>
+    /// Падение для камеры: в воздухе, не на лестнице и вертикальная скорость направлена вниз
+    /// (без ожидания fallDetectionTimeMs).
+    /// </summary>
+    public bool IsFallingForCamera()
+    {
+        return !isGrounded && !isOnLadder && velocity.y < -0.1f;
+    }
+    
     public float GetCurrentSpeed()
     {
         return currentSpeed;
@@ -756,7 +875,37 @@ public class ThirdPersonController : MonoBehaviour
     
     public Vector3 GetVelocity()
     {
-        return characterController.velocity;
+        // Возвращаем внутренний velocity, по которому считается гравитация и падение.
+        return velocity;
+    }
+    
+    /// <summary>
+    /// Добавляет отталкивание (например, от мяча). Направление и величина задаются вектором velocity.
+    /// </summary>
+    public void AddKnockback(Vector3 knockback)
+    {
+        knockbackVelocity += knockback;
+    }
+
+    private void OnGUI()
+    {
+        if (!fallDebug) return;
+
+        const int lineHeight = 18;
+        int y = 10;
+
+        GUI.Label(new Rect(10, y, 420, lineHeight),
+            $"[FallDebug] Grounded={isGrounded}, OnLadder={isOnLadder}, vY={velocity.y:F3}");
+        y += lineHeight;
+
+        bool inAir = !isGrounded && !isOnLadder;
+        GUI.Label(new Rect(10, y, 420, lineHeight),
+            $"[FallDebug] InAir={inAir}, UngroundedMs={ungroundedTimeMs:F1}, IsFalling={isFalling}");
+        y += lineHeight;
+
+        bool camFall = IsFallingForCamera();
+        GUI.Label(new Rect(10, y, 420, lineHeight),
+            $"[FallDebug] CamFalling={camFall}, FallTime={fallTime:F2}s, FallDetectMs={fallDetectionTimeMs:F0}");
     }
     
     /// <summary>
